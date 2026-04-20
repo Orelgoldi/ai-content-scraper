@@ -808,15 +808,19 @@ let config = null;
 // ─── Data Loading ─────────────────────────────────────────────────────────
 async function loadData() {
   try {
-    // Try loading from posts.json in the same directory
-    const resp = await fetch('./data/posts.json');
+    // Load from API endpoint (handles missing file gracefully)
+    const resp = await fetch('/api/posts');
     if (resp.ok) {
       const db = await resp.json();
       allPosts = db.posts || [];
-      console.log(`Loaded ${allPosts.length} posts from DB`);
+      console.log(`Loaded ${allPosts.length} posts from API`);
+    }
+    if (allPosts.length === 0) {
+      console.log('No posts yet. Loading demo data.');
+      loadDemoData();
     }
   } catch (e) {
-    console.log('No posts.json found. Using demo data.');
+    console.log('API not available. Using demo data.');
     loadDemoData();
   }
 

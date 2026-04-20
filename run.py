@@ -112,8 +112,12 @@ def main():
     command = sys.argv[1] if len(sys.argv) > 1 else "server"
 
     if command == "server":
-        # Ensure data directory exists
+        # Ensure data directory and initial DB exist
         (BASE_DIR / "data").mkdir(exist_ok=True)
+        db_path = BASE_DIR / "data" / "posts.json"
+        if not db_path.exists():
+            with open(db_path, "w", encoding="utf-8") as f:
+                json.dump({"posts": [], "last_run": None, "stats": {"total": 0, "by_platform": {}, "by_category": {}}}, f)
 
         print(f"""
 ╔══════════════════════════════════════════════════╗
