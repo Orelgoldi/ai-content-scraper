@@ -115,10 +115,10 @@ def rewrite_with_nano_banana(text, category, platform):
         except Exception as e:
             print(f"  ⚠ Nano Banana API error: {e}")
 
-    # ─── Option 2: Anthropic API Fallback ────────────────────────────────
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    # ─── Option 2: Google Gemini API ────────────────────────────────────
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
 
-    if anthropic_key:
+    if gemini_key:
         try:
             platform_context = {
                 "instagram": "הפוסט מיועד לאינסטגרם - קצר, ויזואלי, עם האשטגים",
@@ -127,38 +127,42 @@ def rewrite_with_nano_banana(text, category, platform):
             }
 
             resp = requests.post(
-                "https://api.anthropic.com/v1/messages",
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_key}",
                 headers={
-                    "x-api-key": anthropic_key,
-                    "content-type": "application/json",
-                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
                 },
                 json={
-                    "model": "claude-sonnet-4-20250514",
-                    "max_tokens": 1000,
-                    "system": REWRITE_SYSTEM_PROMPT,
-                    "messages": [
-                        {"role": "user", "content": f"""פלטפורמה: {platform}
+                    "system_instruction": {
+                        "parts": [{"text": REWRITE_SYSTEM_PROMPT}]
+                    },
+                    "contents": [
+                        {
+                            "parts": [{"text": f"""פלטפורמה: {platform}
 קטגוריה: {category}
 הקשר: {platform_context.get(platform, '')}
 
 פוסט מקורי:
 {text}
 
-כתוב מחדש בעברית ישראלית:"""}
+כתוב מחדש בעברית ישראלית:"""}]
+                        }
                     ],
+                    "generationConfig": {
+                        "maxOutputTokens": 1000,
+                        "temperature": 0.7,
+                    }
                 },
                 timeout=30,
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["content"][0]["text"]
+            return data["candidates"][0]["content"]["parts"][0]["text"]
 
         except Exception as e:
-            print(f"  ⚠ Anthropic API error: {e}")
+            print(f"  ⚠ Gemini API error: {e}")
 
     # ─── No API configured ──────────────────────────────────────────────
-    print("  ⚠ No AI API configured. Set NANO_BANANA_URL + NANO_BANANA_API_KEY or ANTHROPIC_API_KEY")
+    print("  ⚠ No AI API configured. Set NANO_BANANA_URL + NANO_BANANA_API_KEY or GEMINI_API_KEY")
     return None
 
 
