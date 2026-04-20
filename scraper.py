@@ -400,6 +400,15 @@ def run_scraper():
     print("=" * 60)
 
     config = load_config()
+
+    # Override config with environment variables (Railway)
+    if os.environ.get("APIFY_TOKEN"):
+        config["apify"]["token"] = os.environ["APIFY_TOKEN"]
+    if os.environ.get("TELEGRAM_BOT_TOKEN"):
+        config["telegram"]["bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"]
+    if os.environ.get("TELEGRAM_CHAT_ID"):
+        config["telegram"]["chat_id"] = os.environ["TELEGRAM_CHAT_ID"]
+
     db = load_db()
     existing_ids = {p["id"] for p in db["posts"]}
 

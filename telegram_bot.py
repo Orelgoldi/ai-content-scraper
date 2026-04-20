@@ -154,11 +154,17 @@ def main():
     config = load_config()
     db = load_db()
 
+    # Override config with environment variables (Railway)
+    if os.environ.get("TELEGRAM_BOT_TOKEN"):
+        config["telegram"]["bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"]
+    if os.environ.get("TELEGRAM_CHAT_ID"):
+        config["telegram"]["chat_id"] = os.environ["TELEGRAM_CHAT_ID"]
+
     token = config["telegram"]["bot_token"]
     chat_id = config["telegram"]["chat_id"]
 
     if token == "YOUR_TELEGRAM_BOT_TOKEN":
-        print("\u274c Please set your Telegram bot token in config.json")
+        print("\u274c Please set your Telegram bot token in config.json or TELEGRAM_BOT_TOKEN env var")
         return
 
     bot = TelegramBot(token, chat_id)
