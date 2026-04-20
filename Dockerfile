@@ -9,5 +9,8 @@ COPY . .
 
 RUN mkdir -p data/images
 
-# Default: run full pipeline
-CMD ["python", "run.py", "full"]
+# Expose dashboard port
+EXPOSE 8080
+
+# Default: run server (dashboard + scheduled scraping)
+CMD ["python", "run.py", "server"]
