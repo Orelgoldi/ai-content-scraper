@@ -44,8 +44,7 @@
 
   /* Layout */
   .app-container {
-    display: grid;
-    grid-template-columns: 260px 1fr;
+    display: flex;
     min-height: 100vh;
   }
 
@@ -148,6 +147,8 @@
   .main-content {
     margin-right: 260px;
     padding: 24px 32px;
+    flex: 1;
+    min-width: 0;
   }
 
   /* Top Bar */
@@ -280,10 +281,13 @@
   /* Filter Bar */
   .filter-bar {
     display: flex;
+    flex-direction: row;
     align-items: center;
     gap: 8px;
     margin-bottom: 20px;
     flex-wrap: wrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
 
   .filter-chip {
@@ -296,6 +300,8 @@
     color: var(--text-secondary);
     font-family: inherit;
     transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .filter-chip:hover {
@@ -607,7 +613,6 @@
 
   /* Responsive */
   @media (max-width: 1024px) {
-    .app-container { grid-template-columns: 1fr; }
     .sidebar { display: none; }
     .main-content { margin-right: 0; }
     .stats-row { grid-template-columns: repeat(2, 1fr); }
