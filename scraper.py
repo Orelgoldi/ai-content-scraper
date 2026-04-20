@@ -2,13 +2,14 @@
 AI Content Scraper - Apify Integration
 Scrapes Instagram, LinkedIn & TikTok for AI/GenAI design content.
 Categorizes posts, saves to JSON DB, and sends Telegram notifications.
+Only keeps carousels from Instagram & LinkedIn. Accepts all TikTok.
 """
 
 import json
 import os
 import re
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 try:
@@ -56,19 +57,87 @@ def generate_post_id(post):
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+def is_recent(timestamp_str, max_days=2):
+    """Check if a post timestamp is within the last N days."""
+    if not timestamp_str:
+        return True  # If no timestamp, accept it
+    try:
+        # Try various timestamp formats
+        for fmt in ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%f+00:00",
+                    "%Y-%m-%dT%H:%M:%S+00:00", "%Y-%m-%dT%H:%M:%S"]:
+            try:
+                ts = datetime.strptime(timestamp_str[:26], fmt[:len(timestamp_str[:26])])
+                cutoff = datetime.now() - timedelta(days=max_days)
+                return ts > cutoff
+            except ValueError:
+                continue
+        # If we can't parse, try ISO format
+        if "T" in str(timestamp_str):
+            ts_str = str(timestamp_str).replace("Z", "").split("+")[0][:19]
+            ts = datetime.fromisoformat(ts_str)
+            cutoff = datetime.now() - timedelta(days=max_days)
+            return ts > cutoff
+    except Exception:
+        pass
+    return True  # Accept if we can't parse
+
+
+def detect_carousel(item):
+    """Detect if an item is a carousel/sidecar post. Check multiple field names."""
+    # Check type field (various naming conventions)
+    post_type = ""
+    for key in ["type", "productType", "mediaType", "__typename"]:
+        val = (item.get(key) or "")
+        if val:
+            post_type = str(val).lower()
+            break
+
+    if post_type in ("sidecar", "graphsidecar", "carousel", "xdtsidecar", "document"):
+        return True
+
+    # Check for multiple child images
+    for key in ["childPosts", "sidecarImages", "images", "carouselMedia", "sidecar_edges"]:
+        children = item.get(key)
+        if isinstance(children, list) and len(children) > 1:
+            return True
+
+    # Check childPostsCount
+    if (item.get("childPostsCount") or 0) > 1:
+        return True
+
+    return False
+
+
+def extract_carousel_images(item):
+    """Extract all image URLs from carousel children."""
+    images = []
+    for key in ["childPosts", "sidecarImages", "images", "carouselMedia", "sidecar_edges"]:
+        children = item.get(key)
+        if isinstance(children, list) and len(children) > 0:
+            for child in children:
+                if isinstance(child, dict):
+                    for img_key in ["displayUrl", "url", "src", "imageUrl"]:
+                        img = child.get(img_key)
+                        if img and isinstance(img, str) and img.startswith("http"):
+                            images.append(img)
+                            break
+                elif isinstance(child, str) and child.startswith("http"):
+                    images.append(child)
+            if images:
+                return images
+    return images
+
+
 # ─── Category Classification ────────────────────────────────────────────────
 def classify_post(text, config):
     text_lower = (text or "").lower()
     scores = {}
-
     for cat in config["categories"]:
         score = sum(1 for kw in cat["keywords"] if kw.lower() in text_lower)
         if score > 0:
             scores[cat["id"]] = score
-
     if not scores:
-        return "trends"  # default category
-
+        return "trends"
     return max(scores, key=scores.get)
 
 
@@ -102,6 +171,7 @@ def scrape_instagram(client, config):
     print("\n📸 Scraping Instagram...")
     posts = []
     scraping_config = config["scraping"]
+    actor = config["apify"]["actors"]["instagram"]
 
     # Scrape by hashtags
     run_input = {
@@ -113,27 +183,22 @@ def scrape_instagram(client, config):
     }
 
     try:
-        actor = config["apify"]["actors"]["instagram"]
         run = client.actor(actor).call(run_input=run_input)
         dataset = client.dataset(run["defaultDatasetId"])
-        skipped_type = 0
+        carousel_count = 0
+        other_count = 0
 
         for item in dataset.iterate_items():
-            # Only keep carousel/sidecar posts
-            post_type = (item.get("type") or "").lower()
-            if post_type != "sidecar":
-                skipped_type += 1
-                continue
+            is_car = detect_carousel(item)
+            car_images = extract_carousel_images(item) if is_car else []
+            raw_type = item.get("type") or item.get("productType") or item.get("__typename") or "unknown"
 
-            # Extract carousel image URLs
-            sidecar_images = []
-            for child in item.get("childPosts", item.get("sidecarImages", item.get("images", []))):
-                if isinstance(child, dict):
-                    img_url = child.get("displayUrl", child.get("url", child.get("src", "")))
-                    if img_url:
-                        sidecar_images.append(img_url)
-                elif isinstance(child, str):
-                    sidecar_images.append(child)
+            print(f"  📋 type={raw_type} is_carousel={is_car} keys={sorted(item.keys())[:8]}")
+
+            if is_car:
+                carousel_count += 1
+            else:
+                other_count += 1
 
             post = {
                 "platform": "instagram",
@@ -149,21 +214,22 @@ def scrape_instagram(client, config):
                 "comments": item.get("commentsCount", 0),
                 "timestamp": item.get("timestamp", ""),
                 "hashtags": item.get("hashtags", []),
-                "type": "carousel",
-                "carousel_images": sidecar_images,
-                "slides_count": len(sidecar_images) if sidecar_images else item.get("childPostsCount", 0),
+                "type": "carousel" if is_car else str(raw_type).lower(),
+                "is_carousel": is_car,
+                "carousel_images": car_images,
+                "slides_count": len(car_images) if car_images else item.get("childPostsCount", 0),
                 "scraped_at": datetime.now(timezone.utc).isoformat(),
             }
             post["id"] = generate_post_id(post)
             posts.append(post)
-            print(f"  ✓ @{post['author']} - {post['likes']} likes (carousel, {post['slides_count']} slides)")
+            print(f"  ✓ @{post['author']} - {post['likes']} likes ({post['type']})")
 
-        print(f"  📋 Skipped {skipped_type} non-carousel Instagram posts")
+        print(f"  📊 Hashtags: {carousel_count} carousels, {other_count} other")
 
     except Exception as e:
-        print(f"  ✗ Instagram error: {e}")
+        print(f"  ✗ Instagram hashtag error: {e}")
 
-    # Scrape specific profiles (carousels only)
+    # Scrape specific profiles
     for profile in scraping_config["profiles_to_track"].get("instagram", []):
         try:
             profile_input = {
@@ -174,10 +240,9 @@ def scrape_instagram(client, config):
             run = client.actor(actor).call(run_input=profile_input)
             dataset = client.dataset(run["defaultDatasetId"])
             for item in dataset.iterate_items():
-                # Only keep carousel/sidecar posts
-                post_type = (item.get("type") or "").lower()
-                if post_type != "sidecar":
-                    continue
+                is_car = detect_carousel(item)
+                car_images = extract_carousel_images(item) if is_car else []
+                raw_type = item.get("type") or "unknown"
 
                 post = {
                     "platform": "instagram",
@@ -193,7 +258,10 @@ def scrape_instagram(client, config):
                     "comments": item.get("commentsCount", 0),
                     "timestamp": item.get("timestamp", ""),
                     "hashtags": item.get("hashtags", []),
-                    "type": "carousel",
+                    "type": "carousel" if is_car else str(raw_type).lower(),
+                    "is_carousel": is_car,
+                    "carousel_images": car_images,
+                    "slides_count": len(car_images) if car_images else 0,
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
@@ -221,18 +289,14 @@ def scrape_linkedin(client, config):
             }
             run = client.actor(actor).call(run_input=run_input)
             dataset = client.dataset(run["defaultDatasetId"])
-            skipped_type = 0
 
             for item in dataset.iterate_items():
-                # Only keep document/carousel posts (multiple images or document type)
                 post_type = (item.get("type") or "").lower()
                 images = item.get("images") or []
                 has_document = item.get("document") or item.get("documentUrl")
-                is_carousel = post_type in ("document", "carousel") or len(images) > 1 or has_document
+                is_car = post_type in ("document", "carousel") or len(images) > 1 or bool(has_document)
 
-                if not is_carousel:
-                    skipped_type += 1
-                    continue
+                print(f"  📋 LI type={item.get('type')} images={len(images)} doc={bool(has_document)} is_carousel={is_car}")
 
                 post = {
                     "platform": "linkedin",
@@ -249,14 +313,15 @@ def scrape_linkedin(client, config):
                     "comments": item.get("numComments", item.get("comments", 0)),
                     "shares": item.get("numShares", item.get("shares", 0)),
                     "timestamp": item.get("postedAt", item.get("date", "")),
-                    "type": "carousel",
+                    "type": "carousel" if is_car else "post",
+                    "is_carousel": is_car,
+                    "carousel_images": images if is_car else [],
+                    "slides_count": len(images) if is_car else 0,
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
                 posts.append(post)
-                print(f"  ✓ {post['author'][:30]} - {post['likes']} likes (carousel/document)")
-
-            print(f"  📋 Keyword '{keyword}': skipped {skipped_type} non-carousel posts")
+                print(f"  ✓ {post['author'][:30]} - {post['likes']} likes ({post['type']})")
 
         except Exception as e:
             print(f"  ✗ LinkedIn search '{keyword}' error: {e}")
@@ -300,6 +365,7 @@ def scrape_tiktok(client, config):
                     "timestamp": item.get("createTimeISO", ""),
                     "hashtags": [h.get("name", "") for h in item.get("hashtags", [])],
                     "type": "video",
+                    "is_carousel": False,
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
@@ -337,6 +403,7 @@ def scrape_tiktok(client, config):
                     "timestamp": item.get("createTimeISO", ""),
                     "hashtags": [h.get("name", "") for h in item.get("hashtags", [])],
                     "type": "video",
+                    "is_carousel": False,
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
@@ -355,42 +422,36 @@ def send_telegram_notification(post, config, category_name):
         return
 
     platform_emoji = {"instagram": "📸", "linkedin": "💼", "tiktok": "🎵"}.get(post["platform"], "📌")
+    carousel_tag = " 🎠" if post.get("is_carousel") else ""
     text_preview = (post.get("text", "") or "")[:300]
     if len(post.get("text", "") or "") > 300:
         text_preview += "..."
 
-    message = f"""{platform_emoji} *פוסט חדש - {category_name}*
+    message = f"""{platform_emoji}{carousel_tag} *פוסט חדש - {category_name}*
 
 👤 *{post.get('author_name') or post.get('author', 'Unknown')}*
-📊 Platform: {post['platform'].title()}
-❤️ Likes: {post.get('likes', 0):,}
-💬 Comments: {post.get('comments', 0):,}
+📊 {post['platform'].title()} | ❤️ {post.get('likes', 0):,} | 💬 {post.get('comments', 0):,}
 
-📝 *תוכן:*
-{text_preview}
+📝 {text_preview}
 
-🔗 [צפה בפוסט המקורי]({post.get('url', '#')})
+🔗 [צפה בפוסט]({post.get('url', '#')})
 """
 
     try:
         url = f"https://api.telegram.org/bot{tg['bot_token']}/sendMessage"
-        payload = {
+        resp = requests.post(url, json={
             "chat_id": tg["chat_id"],
             "text": message,
             "parse_mode": "Markdown",
             "disable_web_page_preview": False,
-        }
-        resp = requests.post(url, json=payload, timeout=10)
+        }, timeout=10)
 
-        # Also send image if available
         if post.get("image_url"):
-            photo_url = f"https://api.telegram.org/bot{tg['bot_token']}/sendPhoto"
-            photo_payload = {
+            requests.post(f"https://api.telegram.org/bot{tg['bot_token']}/sendPhoto", json={
                 "chat_id": tg["chat_id"],
                 "photo": post["image_url"],
                 "caption": f"{platform_emoji} {post.get('author', '')} - {category_name}",
-            }
-            requests.post(photo_url, json=photo_payload, timeout=10)
+            }, timeout=10)
 
     except Exception as e:
         print(f"  ⚠ Telegram send failed: {e}")
@@ -402,27 +463,23 @@ def send_telegram_summary(new_count, db, config):
         return
 
     stats = db["stats"]
+    carousel_count = sum(1 for p in db["posts"] if p.get("is_carousel"))
+
     message = f"""📊 *סיכום סריקה - AI Content Scraper*
 
 🆕 פוסטים חדשים: *{new_count}*
 📦 סה"כ במאגר: *{stats['total']}*
+🎠 קרוסלות: *{carousel_count}*
 
 📱 *לפי פלטפורמה:*
 📸 Instagram: {stats['by_platform'].get('instagram', 0)}
 💼 LinkedIn: {stats['by_platform'].get('linkedin', 0)}
 🎵 TikTok: {stats['by_platform'].get('tiktok', 0)}
 
-🏷️ *לפי קטגוריה:*
-"""
-    for cat in config["categories"]:
-        count = stats["by_category"].get(cat["id"], 0)
-        message += f"  • {cat['name_he']}: {count}\n"
-
-    message += f"\n⏰ עדכון אחרון: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+⏰ עדכון: {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
 
     try:
-        url = f"https://api.telegram.org/bot{tg['bot_token']}/sendMessage"
-        requests.post(url, json={
+        requests.post(f"https://api.telegram.org/bot{tg['bot_token']}/sendMessage", json={
             "chat_id": tg["chat_id"],
             "text": message,
             "parse_mode": "Markdown",
@@ -460,63 +517,70 @@ def run_scraper():
     all_posts.extend(scrape_linkedin(client, config))
     all_posts.extend(scrape_tiktok(client, config))
 
-    # Process & deduplicate
-    min_likes = int(os.environ.get("MIN_LIKES", 50))
+    print(f"\n📦 Raw total: {len(all_posts)} posts scraped")
+
+    # ─── Filter & Sort ────────────────────────────────────────────────────
+    min_likes = int(os.environ.get("MIN_LIKES", 10))
     max_posts = int(os.environ.get("MAX_POSTS", 300))
     max_telegram = int(os.environ.get("MAX_TELEGRAM", 10))
-    min_likes_telegram = int(os.environ.get("MIN_LIKES_TELEGRAM", 200))
+    min_likes_telegram = int(os.environ.get("MIN_LIKES_TELEGRAM", 50))
+    max_days = int(os.environ.get("MAX_DAYS", 2))
 
-    # Filter out duplicates, zero-engagement, and low-engagement posts
     candidates = []
+    skipped_dup = 0
+    skipped_old = 0
     skipped_low = 0
-    skipped_zero = 0
+
     for post in all_posts:
         if post["id"] in existing_ids:
+            skipped_dup += 1
             continue
+
+        # Filter: only last N days
+        if not is_recent(post.get("timestamp"), max_days):
+            skipped_old += 1
+            continue
+
+        # Filter: minimum engagement
         post_likes = post.get("likes", 0) or 0
-        post_comments = post.get("comments", 0) or 0
-        # Skip posts with zero engagement entirely
-        if post_likes == 0 and post_comments == 0:
-            skipped_zero += 1
-            continue
         if post_likes < min_likes:
             skipped_low += 1
             continue
+
         candidates.append(post)
 
-    # Sort by likes descending - keep only top MAX_POSTS
-    candidates.sort(key=lambda p: p.get("likes", 0) or 0, reverse=True)
+    # Sort: carousels first, then by likes
+    candidates.sort(key=lambda p: (
+        1 if p.get("is_carousel") else 0,  # carousels first
+        p.get("likes", 0) or 0              # then by likes
+    ), reverse=True)
+
     top_posts = candidates[:max_posts]
 
-    print(f"  📊 Found {len(all_posts)} total, {len(candidates)} passed filter, keeping top {len(top_posts)}")
-    print(f"  📊 Skipped {skipped_zero} posts (zero engagement)")
-    print(f"  📊 Skipped {skipped_low} posts (under {min_likes} likes)")
+    print(f"  📊 {len(candidates)} passed filters, keeping top {len(top_posts)}")
+    print(f"  📊 Skipped: {skipped_dup} duplicates, {skipped_old} old (>{max_days}d), {skipped_low} low (<{min_likes} likes)")
+    carousels_in = sum(1 for p in top_posts if p.get("is_carousel"))
+    print(f"  🎠 Carousels in final set: {carousels_in}/{len(top_posts)}")
 
     new_count = 0
     telegram_sent = 0
     for post in top_posts:
-        # Classify
         post["category"] = classify_post(post.get("text", ""), config)
         category_name = next(
             (c["name_he"] for c in config["categories"] if c["id"] == post["category"]),
             "כללי"
         )
-
-        # Download image
         post["local_image"] = download_image(post.get("image_url"), post["id"])
-
-        # Hebrew rewrite placeholder
         post["hebrew_text"] = None
         post["hebrew_status"] = "pending"
 
-        # Add to DB
         db["posts"].append(post)
         existing_ids.add(post["id"])
         new_count += 1
 
-        # Send Telegram notification only for top posts with enough likes (max 10 per run)
+        # Telegram: send carousels first, then top liked
         post_likes = post.get("likes", 0) or 0
-        if post_likes >= min_likes_telegram and telegram_sent < max_telegram:
+        if telegram_sent < max_telegram and (post.get("is_carousel") or post_likes >= min_likes_telegram):
             send_telegram_notification(post, config, category_name)
             telegram_sent += 1
 
@@ -535,7 +599,6 @@ def run_scraper():
     db["last_run"] = datetime.now(timezone.utc).isoformat()
     save_db(db)
 
-    # Send summary
     send_telegram_summary(new_count, db, config)
 
     print(f"\n{'=' * 60}")
