@@ -1,0 +1,97 @@
+{
+  "apify": {
+    "token": "YOUR_APIFY_API_TOKEN",
+    "actors": {
+      "instagram": "apify/instagram-scraper",
+      "linkedin": "curious_coder/linkedin-post-search-scraper",
+      "tiktok": "clockworks/tiktok-scraper"
+    }
+  },
+  "telegram": {
+    "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "chat_id": "YOUR_CHAT_ID"
+  },
+  "scraping": {
+    "keywords": [
+      "AI design",
+      "generative AI",
+      "UI UX AI",
+      "AI web design",
+      "midjourney UI",
+      "figma AI",
+      "AI website builder",
+      "gen AI design",
+      "AI tools for designers",
+      "artificial intelligence design",
+      "AI UX research",
+      "AI prototyping",
+      "cursor AI",
+      "v0 dev",
+      "bolt new",
+      "lovable dev",
+      "framer AI",
+      "webflow AI",
+      "AI landing page",
+      "ChatGPT design",
+      "claude artifacts"
+    ],
+    "hashtags_instagram": [
+      "#AIdesign", "#GenerativeAI", "#UIUX", "#AIwebdesign",
+      "#MidjourneyUI", "#FigmaAI", "#AItools", "#GenAI",
+      "#AIforDesigners", "#WebDesignAI", "#AIUX", "#DesignAI",
+      "#UIDesign", "#AIart", "#CreativeAI"
+    ],
+    "profiles_to_track": {
+      "instagram": [
+        "uxdesign.cc", "figma", "thedesignteam", "ux_collective",
+        "designmilk", "dribbble", "theuxblog"
+      ],
+      "linkedin": [
+        "AI design", "generative AI UX", "AI web development"
+      ],
+      "tiktok": [
+        "aidesigntips", "uxdesigntok", "webdesignai"
+      ]
+    },
+    "max_posts_per_run": 50,
+    "schedule_interval_hours": 6
+  },
+  "categories": [
+    {
+      "id": "ai_tools",
+      "name_en": "AI Tools & Platforms",
+      "name_he": "כלי AI ופלטפורמות",
+      "keywords": ["tool", "platform", "cursor", "v0", "bolt", "lovable", "framer", "webflow", "figma"]
+    },
+    {
+      "id": "ui_ux_design",
+      "name_en": "UI/UX Design with AI",
+      "name_he": "עיצוב UI/UX עם AI",
+      "keywords": ["design", "UI", "UX", "prototype", "wireframe", "mockup", "figma"]
+    },
+    {
+      "id": "web_building",
+      "name_en": "AI Website Building",
+      "name_he": "בניית אתרים עם AI",
+      "keywords": ["website", "landing", "web", "build", "deploy", "code", "develop"]
+    },
+    {
+      "id": "gen_ai_art",
+      "name_en": "Generative AI Art",
+      "name_he": "אמנות גנרטיבית",
+      "keywords": ["midjourney", "dalle", "stable diffusion", "art", "generate", "image", "visual"]
+    },
+    {
+      "id": "tutorials",
+      "name_en": "Tutorials & Tips",
+      "name_he": "מדריכים וטיפים",
+      "keywords": ["tutorial", "tip", "how to", "guide", "learn", "course", "trick"]
+    },
+    {
+      "id": "trends",
+      "name_en": "Trends & News",
+      "name_he": "טרנדים וחדשות",
+      "keywords": ["trend", "new", "launch", "update", "release", "announce", "future"]
+    }
+  ]
+}

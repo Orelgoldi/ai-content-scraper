@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Content Scraper - Dashboard</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #1f1f35;
+    --accent-blue: #6366f1;
+    --accent-purple: #8b5cf6;
+    --accent-pink: #ec4899;
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --border-color: #2a2a3e;
+    --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6);
+    --gradient-2: linear-gradient(135deg, #ec4899, #8b5cf6);
+    --gradient-3: linear-gradient(135deg, #10b981, #6366f1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Heebo', 'Inter', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    direction: rtl;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-blue); }
+
+  /* Layout */
+  .app-container {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color);
+    padding: 24px 16px;
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    overflow-y: auto;
+    z-index: 50;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 32px;
+    padding: 0 8px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--gradient-1);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: white;
+  }
+
+  .logo-text {
+    font-size: 16px;
+    font-weight: 700;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .sidebar-section {
+    margin-bottom: 24px;
+  }
+
+  .sidebar-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+
+  .nav-item:hover {
+    background: rgba(99, 102, 241, 0.08);
+    color: var(--text-primary);
+  }
+
+  .nav-item.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--accent-blue);
+    font-weight: 500;
+  }
+
+  .nav-item .count {
+    margin-right: auto;
+    font-size: 12px;
+    background: var(--bg-card);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: var(--text-muted);
+  }
+
+  .nav-item.active .count {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--accent-blue);
+  }
+
+  /* Main Content */
+  .main-content {
+    margin-right: 260px;
+    padding: 24px 32px;
+  }
+
+  /* Top Bar */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 8px 16px;
+    width: 320px;
+    transition: border-color 0.15s;
+  }
+
+  .search-box:focus-within {
+    border-color: var(--accent-blue);
+  }
+
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+  }
+
+  .search-box input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn-primary {
+    background: var(--gradient-1);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+  }
+
+  .btn-ghost:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  /* Stats Row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+
+  .stat-card:hover {
+    border-color: var(--accent-blue);
+    transform: translateY(-2px);
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+  }
+
+  .stat-value.gradient-1 { background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-value.gradient-2 { background: var(--gradient-2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-value.gradient-3 { background: var(--gradient-3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-value.accent-orange { color: var(--accent-orange); }
+
+  .stat-change {
+    font-size: 12px;
+    color: var(--accent-green);
+    margin-top: 4px;
+  }
+
+  /* Filter Bar */
+  .filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .filter-chip:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+  }
+
+  .filter-chip.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+  }
+
+  .sort-select {
+    margin-right: auto;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* Posts Grid */
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+  }
+
+  /* Post Card */
+  .post-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+
+  .post-card:hover {
+    border-color: var(--accent-blue);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.1);
+  }
+
+  .post-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background: var(--bg-secondary);
+  }
+
+  .post-image-placeholder {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(135deg, var(--bg-secondary), var(--bg-card));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    opacity: 0.4;
+  }
+
+  .post-body {
+    padding: 16px;
+  }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .post-author {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .author-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--gradient-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .author-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .author-handle {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .platform-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .platform-badge.instagram { background: rgba(236, 72, 153, 0.15); color: #ec4899; }
+  .platform-badge.linkedin { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .platform-badge.tiktok { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+  .post-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .post-category {
+    display: inline-block;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: rgba(139, 92, 246, 0.12);
+    color: var(--accent-purple);
+    font-weight: 500;
+    margin-bottom: 12px;
+  }
+
+  .post-stats {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .post-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .post-stat svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .post-stat.likes { color: var(--accent-pink); }
+  .post-stat.comments { color: var(--accent-blue); }
+  .post-stat.views { color: var(--accent-green); }
+
+  .hebrew-badge {
+    margin-right: auto;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .hebrew-badge.done { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+  .hebrew-badge.pending { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 85vh;
+    overflow-y: auto;
+    transform: translateY(20px);
+    transition: transform 0.2s;
+  }
+
+  .modal-overlay.active .modal {
+    transform: translateY(0);
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .modal-close:hover { color: var(--text-primary); }
+
+  .modal-body {
+    padding: 24px;
+  }
+
+  .modal-image {
+    width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    background: var(--bg-primary);
+  }
+
+  .modal-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+  }
+
+  .modal-hebrew-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+
+  .modal-hebrew-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-purple);
+    margin-bottom: 8px;
+  }
+
+  .modal-hebrew-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-primary);
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 80px 40px;
+  }
+
+  .empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+
+  .empty-state h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+  }
+
+  .empty-state p {
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 400px;
+    margin: 0 auto;
+  }
+
+  /* Loading Animation */
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  .loading-dot {
+    animation: pulse 1.5s infinite;
+  }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .app-container { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main-content { margin-right: 0; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 640px) {
+    .main-content { padding: 16px; }
+    .stats-row { grid-template-columns: 1fr; }
+    .posts-grid { grid-template-columns: 1fr; }
+    .top-bar { flex-direction: column; gap: 12px; align-items: stretch; }
+    .search-box { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">AI</div>
+      <div class="logo-text">Content Scraper</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">ניווט</div>
+      <div class="nav-item active" data-view="all" onclick="setView('all')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        כל הפוסטים
+        <span class="count" id="count-all">0</span>
+      </div>
+      <div class="nav-item" data-view="favorites" onclick="setView('favorites')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        מועדפים
+        <span class="count" id="count-favorites">0</span>
+      </div>
+      <div class="nav-item" data-view="hebrew-ready" onclick="setView('hebrew-ready')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        תורגם לעברית
+        <span class="count" id="count-hebrew">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">פלטפורמות</div>
+      <div class="nav-item" data-platform="instagram" onclick="setPlatform('instagram')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+        Instagram
+        <span class="count" id="count-instagram">0</span>
+      </div>
+      <div class="nav-item" data-platform="linkedin" onclick="setPlatform('linkedin')">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        LinkedIn
+        <span class="count" id="count-linkedin">0</span>
+      </div>
+      <div class="nav-item" data-platform="tiktok" onclick="setPlatform('tiktok')">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+        TikTok
+        <span class="count" id="count-tiktok">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">קטגוריות</div>
+      <div id="category-nav"></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <h1 class="page-title" id="page-title">כל הפוסטים</h1>
+      <div class="top-actions">
+        <div class="search-box">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="חיפוש פוסטים..." id="search-input" oninput="filterPosts()">
+        </div>
+        <select class="sort-select" id="sort-select" onchange="filterPosts()">
+          <option value="newest">הכי חדש</option>
+          <option value="likes">הכי לייקים</option>
+          <option value="comments">הכי תגובות</option>
+          <option value="views">הכי צפיות</option>
+        </select>
+        <button class="btn btn-ghost" onclick="exportData()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          ייצוא
+        </button>
+        <button class="btn btn-primary" onclick="loadData()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          רענון
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">סה"כ פוסטים</div>
+        <div class="stat-value gradient-1" id="stat-total">0</div>
+        <div class="stat-change" id="stat-total-change"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">פוסטים חדשים (24 שעות)</div>
+        <div class="stat-value gradient-2" id="stat-new">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">ממוצע לייקים</div>
+        <div class="stat-value gradient-3" id="stat-avg-likes">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">תורגם לעברית</div>
+        <div class="stat-value accent-orange" id="stat-hebrew">0%</div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-chip active" data-filter="all" onclick="setFilter('all')">הכל</button>
+    </div>
+
+    <!-- Posts Grid -->
+    <div class="posts-grid" id="posts-grid"></div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <div class="empty-state-icon">
+        <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="opacity:0.4"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      </div>
+      <h3>אין פוסטים להצגה</h3>
+      <p>הרץ את הסקריפט scraper.py כדי לאסוף תוכן, או טען קובץ posts.json</p>
+    </div>
+  </main>
+</div>
+
+<!-- Post Detail Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="author-avatar" id="modal-avatar">A</div>
+        <div>
+          <div class="author-name" id="modal-author">Author</div>
+          <div class="author-handle" id="modal-handle">@handle</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <img class="modal-image" id="modal-image" src="" alt="" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <span class="platform-badge" id="modal-platform"></span>
+        <span class="post-category" id="modal-category"></span>
+      </div>
+      <div class="modal-text" id="modal-text"></div>
+      <div class="post-stats" style="border:none;padding:0;margin-bottom:16px;">
+        <span class="post-stat likes">
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <span id="modal-likes">0</span>
+        </span>
+        <span class="post-stat comments">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          <span id="modal-comments">0</span>
+        </span>
+        <span class="post-stat views" id="modal-views-wrap" style="display:none;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span id="modal-views">0</span>
+        </span>
+      </div>
+      <a id="modal-link" href="#" target="_blank" class="btn btn-primary" style="text-decoration:none;display:inline-flex;">
+        צפה בפוסט המקורי
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+      <div class="modal-hebrew-section" id="modal-hebrew-section" style="display:none;">
+        <div class="modal-hebrew-title">גרסה בעברית (Nano Banana)</div>
+        <div class="modal-hebrew-text" id="modal-hebrew-text"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────
+let allPosts = [];
+let filteredPosts = [];
+let favorites = JSON.parse(localStorage.getItem('ai-scraper-favorites') || '[]');
+let currentView = 'all';
+let currentPlatform = null;
+let currentCategory = null;
+let currentFilter = 'all';
+let config = null;
+
+// ─── Data Loading ─────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    // Try loading from posts.json in the same directory
+    const resp = await fetch('./data/posts.json');
+    if (resp.ok) {
+      const db = await resp.json();
+      allPosts = db.posts || [];
+      console.log(`Loaded ${allPosts.length} posts from DB`);
+    }
+  } catch (e) {
+    console.log('No posts.json found. Using demo data.');
+    loadDemoData();
+  }
+
+  try {
+    const configResp = await fetch('./config.json');
+    if (configResp.ok) {
+      config = await configResp.json();
+    }
+  } catch (e) {
+    console.log('Using default config');
+  }
+
+  updateUI();
+}
+
+function loadDemoData() {
+  const demoCategories = ['ai_tools', 'ui_ux_design', 'web_building', 'gen_ai_art', 'tutorials', 'trends'];
+  const demoPlatforms = ['instagram', 'linkedin', 'tiktok'];
+  const demoAuthors = [
+    { name: 'Design AI Lab', handle: 'designailab', platform: 'instagram' },
+    { name: 'Sarah Chen', handle: 'sarahchen_ux', platform: 'instagram' },
+    { name: 'Tom Williams', handle: 'tom.ai.design', platform: 'linkedin' },
+    { name: 'UX Collective', handle: 'ux_collective', platform: 'linkedin' },
+    { name: 'AI Builder', handle: 'aibuilder', platform: 'tiktok' },
+    { name: 'Figma Tips', handle: 'figmatips', platform: 'tiktok' },
+    { name: 'GenAI Studio', handle: 'genaistudio', platform: 'instagram' },
+    { name: 'Web3 Designer', handle: 'web3designer', platform: 'linkedin' },
+    { name: 'Cursor Pro', handle: 'cursorpro', platform: 'tiktok' },
+    { name: 'AI UX Master', handle: 'aiuxmaster', platform: 'instagram' },
+  ];
+
+  const demoTexts = {
+    ai_tools: [
+      "Just discovered this incredible AI tool that generates full design systems in seconds. The future of UI design is here! Cursor + v0 + Figma AI = unstoppable combo 🔥",
+      "Comparing the top 5 AI design platforms in 2026: Framer AI, Webflow AI, Bolt.new, Lovable.dev, and v0.dev. Here's my honest review after using each for a month...",
+    ],
+    ui_ux_design: [
+      "How I used AI to redesign our entire checkout flow and increase conversions by 34%. The key was letting AI handle the layout variations while I focused on the user psychology.",
+      "Hot take: AI won't replace UX designers. But UX designers who use AI will replace those who don't. Here are 7 AI-powered UX workflows I use daily.",
+    ],
+    web_building: [
+      "Built a full SaaS landing page in 12 minutes using AI. No code. No templates. Just described what I wanted and iterated. Here's the step-by-step process:",
+      "From Figma to live website in under 5 minutes. The new AI-powered export tools are absolutely insane. Here's my workflow comparison.",
+    ],
+    gen_ai_art: [
+      "Created this entire brand identity using Midjourney v7 + AI color palette generator. The consistency is mind-blowing. Swipe to see the full brand kit →",
+      "The art of prompting for UI: How to get Midjourney to generate pixel-perfect UI mockups. My complete prompt engineering guide for designers.",
+    ],
+    tutorials: [
+      "TUTORIAL: How to set up an AI-powered design pipeline from scratch. Step 1: Choose your AI stack. Step 2: Set up automated workflows. Step 3: Create feedback loops.",
+      "Free course: Learn to build AI-powered websites in 2 hours. Covers Cursor, v0, Bolt, and more. Link in bio.",
+    ],
+    trends: [
+      "Breaking: Figma just announced AI-native features that will change how we design forever. Real-time AI suggestions, auto-layout intelligence, and smart component creation.",
+      "2026 Design Trends: AI-generated micro-interactions, adaptive color systems, and personalized UX at scale. Here's what I'm seeing across 200+ design teams.",
+    ],
+  };
+
+  allPosts = [];
+  for (let i = 0; i < 24; i++) {
+    const author = demoAuthors[i % demoAuthors.length];
+    const category = demoCategories[i % demoCategories.length];
+    const texts = demoTexts[category];
+    const daysAgo = Math.floor(Math.random() * 14);
+    const date = new Date();
+    date.setDate(date.getDate() - daysAgo);
+
+    allPosts.push({
+      id: `demo-${i}`,
+      platform: author.platform,
+      author: author.handle,
+      author_name: author.name,
+      author_url: `https://${author.platform}.com/${author.handle}`,
+      author_followers: Math.floor(Math.random() * 500000) + 1000,
+      text: texts[i % texts.length],
+      url: '#',
+      image_url: `https://picsum.photos/seed/${i + 100}/600/400`,
+      likes: Math.floor(Math.random() * 50000) + 100,
+      comments: Math.floor(Math.random() * 2000) + 10,
+      views: author.platform === 'tiktok' ? Math.floor(Math.random() * 500000) + 1000 : 0,
+      timestamp: date.toISOString(),
+      category: category,
+      hebrew_text: i % 5 === 0 ? 'זו גרסה לדוגמה בעברית של הפוסט המקורי. הטקסט נכתב מחדש בקופי ישראלי טבעי שלא מרגיש כמו תרגום מאנגלית.' : null,
+      hebrew_status: i % 5 === 0 ? 'done' : 'pending',
+      scraped_at: date.toISOString(),
+    });
+  }
+}
+
+// ─── UI Updates ───────────────────────────────────────────────────────────
+function updateUI() {
+  updateStats();
+  updateSidebarCounts();
+  buildCategoryNav();
+  buildFilterBar();
+  filterPosts();
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = allPosts.length.toLocaleString();
+
+  const oneDayAgo = new Date(Date.now() - 86400000);
+  const newPosts = allPosts.filter(p => new Date(p.scraped_at) > oneDayAgo);
+  document.getElementById('stat-new').textContent = newPosts.length.toLocaleString();
+
+  const avgLikes = allPosts.length > 0
+    ? Math.round(allPosts.reduce((s, p) => s + (p.likes || 0), 0) / allPosts.length)
+    : 0;
+  document.getElementById('stat-avg-likes').textContent = avgLikes.toLocaleString();
+
+  const hebrewDone = allPosts.filter(p => p.hebrew_status === 'done').length;
+  const hebrewPct = allPosts.length > 0 ? Math.round((hebrewDone / allPosts.length) * 100) : 0;
+  document.getElementById('stat-hebrew').textContent = `${hebrewPct}%`;
+}
+
+function updateSidebarCounts() {
+  document.getElementById('count-all').textContent = allPosts.length;
+  document.getElementById('count-favorites').textContent = allPosts.filter(p => favorites.includes(p.id)).length;
+  document.getElementById('count-hebrew').textContent = allPosts.filter(p => p.hebrew_status === 'done').length;
+  document.getElementById('count-instagram').textContent = allPosts.filter(p => p.platform === 'instagram').length;
+  document.getElementById('count-linkedin').textContent = allPosts.filter(p => p.platform === 'linkedin').length;
+  document.getElementById('count-tiktok').textContent = allPosts.filter(p => p.platform === 'tiktok').length;
+}
+
+function buildCategoryNav() {
+  const categories = config?.categories || [
+    { id: 'ai_tools', name_he: 'כלי AI ופלטפורמות' },
+    { id: 'ui_ux_design', name_he: 'עיצוב UI/UX עם AI' },
+    { id: 'web_building', name_he: 'בניית אתרים עם AI' },
+    { id: 'gen_ai_art', name_he: 'אמנות גנרטיבית' },
+    { id: 'tutorials', name_he: 'מדריכים וטיפים' },
+    { id: 'trends', name_he: 'טרנדים וחדשות' },
+  ];
+
+  const nav = document.getElementById('category-nav');
+  nav.innerHTML = categories.map(cat => {
+    const count = allPosts.filter(p => p.category === cat.id).length;
+    return `<div class="nav-item" data-category="${cat.id}" onclick="setCategory('${cat.id}')">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--accent-purple);flex-shrink:0;"></span>
+      ${cat.name_he}
+      <span class="count">${count}</span>
+    </div>`;
+  }).join('');
+}
+
+function buildFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  const categories = config?.categories || [
+    { id: 'ai_tools', name_he: 'כלי AI' },
+    { id: 'ui_ux_design', name_he: 'UI/UX' },
+    { id: 'web_building', name_he: 'בניית אתרים' },
+    { id: 'gen_ai_art', name_he: 'אמנות גנרטיבית' },
+    { id: 'tutorials', name_he: 'מדריכים' },
+    { id: 'trends', name_he: 'טרנדים' },
+  ];
+
+  bar.innerHTML = `<button class="filter-chip active" data-filter="all" onclick="setFilter('all')">הכל</button>` +
+    categories.map(cat =>
+      `<button class="filter-chip" data-filter="${cat.id}" onclick="setFilter('${cat.id}')">${cat.name_he}</button>`
+    ).join('');
+}
+
+// ─── Filtering ────────────────────────────────────────────────────────────
+function filterPosts() {
+  let posts = [...allPosts];
+  const search = document.getElementById('search-input').value.toLowerCase();
+  const sort = document.getElementById('sort-select').value;
+
+  // View filter
+  if (currentView === 'favorites') {
+    posts = posts.filter(p => favorites.includes(p.id));
+  } else if (currentView === 'hebrew-ready') {
+    posts = posts.filter(p => p.hebrew_status === 'done');
+  }
+
+  // Platform filter
+  if (currentPlatform) {
+    posts = posts.filter(p => p.platform === currentPlatform);
+  }
+
+  // Category filter
+  if (currentCategory) {
+    posts = posts.filter(p => p.category === currentCategory);
+  }
+
+  // Chip filter
+  if (currentFilter && currentFilter !== 'all') {
+    posts = posts.filter(p => p.category === currentFilter);
+  }
+
+  // Search
+  if (search) {
+    posts = posts.filter(p =>
+      (p.text || '').toLowerCase().includes(search) ||
+      (p.author || '').toLowerCase().includes(search) ||
+      (p.author_name || '').toLowerCase().includes(search)
+    );
+  }
+
+  // Sort
+  switch (sort) {
+    case 'likes': posts.sort((a, b) => (b.likes || 0) - (a.likes || 0)); break;
+    case 'comments': posts.sort((a, b) => (b.comments || 0) - (a.comments || 0)); break;
+    case 'views': posts.sort((a, b) => (b.views || 0) - (a.views || 0)); break;
+    default: posts.sort((a, b) => new Date(b.scraped_at || 0) - new Date(a.scraped_at || 0));
+  }
+
+  filteredPosts = posts;
+  renderPosts();
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────
+function setView(view) {
+  currentView = view;
+  currentPlatform = null;
+  currentCategory = null;
+  currentFilter = 'all';
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`[data-view="${view}"]`)?.classList.add('active');
+
+  const titles = { all: 'כל הפוסטים', favorites: 'מועדפים', 'hebrew-ready': 'תורגם לעברית' };
+  document.getElementById('page-title').textContent = titles[view] || 'כל הפוסטים';
+
+  resetFilterChips();
+  filterPosts();
+}
+
+function setPlatform(platform) {
+  currentPlatform = currentPlatform === platform ? null : platform;
+  currentView = null;
+  currentCategory = null;
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (currentPlatform) {
+    document.querySelector(`[data-platform="${platform}"]`)?.classList.add('active');
+    document.getElementById('page-title').textContent = platform.charAt(0).toUpperCase() + platform.slice(1);
+  } else {
+    setView('all');
+    return;
+  }
+
+  resetFilterChips();
+  filterPosts();
+}
+
+function setCategory(category) {
+  currentCategory = currentCategory === category ? null : category;
+  currentView = null;
+  currentPlatform = null;
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (currentCategory) {
+    document.querySelector(`[data-category="${category}"]`)?.classList.add('active');
+    const catObj = (config?.categories || []).find(c => c.id === category);
+    document.getElementById('page-title').textContent = catObj?.name_he || category;
+  } else {
+    setView('all');
+    return;
+  }
+
+  resetFilterChips();
+  filterPosts();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelector(`[data-filter="${filter}"]`)?.classList.add('active');
+  filterPosts();
+}
+
+function resetFilterChips() {
+  currentFilter = 'all';
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  document.querySelector('[data-filter="all"]')?.classList.add('active');
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────
+function getCategoryName(catId) {
+  const cats = config?.categories || [
+    { id: 'ai_tools', name_he: 'כלי AI' },
+    { id: 'ui_ux_design', name_he: 'UI/UX' },
+    { id: 'web_building', name_he: 'בניית אתרים' },
+    { id: 'gen_ai_art', name_he: 'אמנות גנרטיבית' },
+    { id: 'tutorials', name_he: 'מדריכים' },
+    { id: 'trends', name_he: 'טרנדים' },
+  ];
+  return cats.find(c => c.id === catId)?.name_he || catId;
+}
+
+function formatNumber(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+
+function renderPosts() {
+  const grid = document.getElementById('posts-grid');
+  const empty = document.getElementById('empty-state');
+
+  if (filteredPosts.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  grid.innerHTML = filteredPosts.map((post, idx) => {
+    const isFav = favorites.includes(post.id);
+    const initial = (post.author_name || post.author || 'A')[0].toUpperCase();
+
+    return `<div class="post-card" onclick="openModal(${idx})">
+      ${post.image_url
+        ? `<img class="post-image" src="${post.image_url}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="post-image-placeholder" style="display:none;">${post.platform === 'tiktok' ? '&#9654;' : '&#128247;'}</div>`
+        : `<div class="post-image-placeholder">${post.platform === 'tiktok' ? '&#9654;' : '&#128247;'}</div>`
+      }
+      <div class="post-body">
+        <div class="post-meta">
+          <div class="post-author">
+            <div class="author-avatar">${initial}</div>
+            <div>
+              <div class="author-name">${post.author_name || post.author}</div>
+              <div class="author-handle">@${post.author}</div>
+            </div>
+          </div>
+          <span class="platform-badge ${post.platform}">${post.platform}</span>
+        </div>
+        <span class="post-category">${getCategoryName(post.category)}</span>
+        <div class="post-text">${(post.text || '').replace(/</g, '&lt;')}</div>
+        <div class="post-stats">
+          <span class="post-stat likes">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            ${formatNumber(post.likes)}
+          </span>
+          <span class="post-stat comments">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            ${formatNumber(post.comments)}
+          </span>
+          ${post.views ? `<span class="post-stat views">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            ${formatNumber(post.views)}
+          </span>` : ''}
+          <span class="hebrew-badge ${post.hebrew_status === 'done' ? 'done' : 'pending'}">
+            ${post.hebrew_status === 'done' ? 'עברית ✓' : 'ממתין לתרגום'}
+          </span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────
+function openModal(idx) {
+  const post = filteredPosts[idx];
+  if (!post) return;
+
+  const overlay = document.getElementById('modal-overlay');
+  const initial = (post.author_name || post.author || 'A')[0].toUpperCase();
+
+  document.getElementById('modal-avatar').textContent = initial;
+  document.getElementById('modal-author').textContent = post.author_name || post.author;
+  document.getElementById('modal-handle').textContent = `@${post.author} · ${post.platform}`;
+
+  const img = document.getElementById('modal-image');
+  if (post.image_url) {
+    img.src = post.image_url;
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+  }
+
+  document.getElementById('modal-platform').textContent = post.platform;
+  document.getElementById('modal-platform').className = `platform-badge ${post.platform}`;
+  document.getElementById('modal-category').textContent = getCategoryName(post.category);
+  document.getElementById('modal-text').textContent = post.text || '';
+  document.getElementById('modal-likes').textContent = formatNumber(post.likes);
+  document.getElementById('modal-comments').textContent = formatNumber(post.comments);
+
+  const viewsWrap = document.getElementById('modal-views-wrap');
+  if (post.views) {
+    document.getElementById('modal-views').textContent = formatNumber(post.views);
+    viewsWrap.style.display = 'flex';
+  } else {
+    viewsWrap.style.display = 'none';
+  }
+
+  document.getElementById('modal-link').href = post.url || '#';
+
+  const hebrewSection = document.getElementById('modal-hebrew-section');
+  if (post.hebrew_text) {
+    document.getElementById('modal-hebrew-text').textContent = post.hebrew_text;
+    hebrewSection.style.display = 'block';
+  } else {
+    hebrewSection.style.display = 'none';
+  }
+
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e && e.target !== e.currentTarget && !e.target.classList.contains('modal-close')) return;
+  document.getElementById('modal-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ─── Export ───────────────────────────────────────────────────────────────
+function exportData() {
+  const data = JSON.stringify({ posts: filteredPosts, exported_at: new Date().toISOString() }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ai-content-export-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
