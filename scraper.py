@@ -125,6 +125,16 @@ def scrape_instagram(client, config):
                 skipped_type += 1
                 continue
 
+            # Extract carousel image URLs
+            sidecar_images = []
+            for child in item.get("childPosts", item.get("sidecarImages", item.get("images", []))):
+                if isinstance(child, dict):
+                    img_url = child.get("displayUrl", child.get("url", child.get("src", "")))
+                    if img_url:
+                        sidecar_images.append(img_url)
+                elif isinstance(child, str):
+                    sidecar_images.append(child)
+
             post = {
                 "platform": "instagram",
                 "author": item.get("ownerUsername", ""),
@@ -140,11 +150,13 @@ def scrape_instagram(client, config):
                 "timestamp": item.get("timestamp", ""),
                 "hashtags": item.get("hashtags", []),
                 "type": "carousel",
+                "carousel_images": sidecar_images,
+                "slides_count": len(sidecar_images) if sidecar_images else item.get("childPostsCount", 0),
                 "scraped_at": datetime.now(timezone.utc).isoformat(),
             }
             post["id"] = generate_post_id(post)
             posts.append(post)
-            print(f"  ✓ @{post['author']} - {post['likes']} likes (carousel)")
+            print(f"  ✓ @{post['author']} - {post['likes']} likes (carousel, {post['slides_count']} slides)")
 
         print(f"  📋 Skipped {skipped_type} non-carousel Instagram posts")
 

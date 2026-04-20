@@ -32,7 +32,11 @@ def run_pipeline():
             from hebrew_rewriter import rewrite_pending_posts
             rewrite_pending_posts(limit=new_posts)
 
-        # Step 3: Send Telegram digest
+        # Step 3: Generate Hebrew carousel images
+        from image_generator import generate_pending_images
+        generate_pending_images(limit=min(new_posts, 5) if new_posts > 0 else 5)
+
+        # Step 4: Send Telegram digest
         os.system(f"{sys.executable} telegram_bot.py digest")
 
         print(f"\n✅ Pipeline complete! Next run in {SCRAPE_INTERVAL // 60} minutes.\n")
@@ -92,7 +96,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         db_path = BASE_DIR / "data" / "posts.json"
         if db_path.exists():
             with open(db_path, "r", encoding="utf-8") as f:
-                data = f.read()
+                db = json.load(f)
+            # Convert absolute image paths to relative paths for web serving
+            base_str = str(BASE_DIR)
+            for post in db.get("posts", []):
+                if post.get("generated_images"):
+                    post["generated_images"] = [
+                        p.replace(base_str + "/", "./") if p.startswith(base_str) else p
+                        for p in post["generated_images"]
+                    ]
+            data = json.dumps(db, ensure_ascii=False)
         else:
             data = json.dumps({"posts": [], "last_updated": None})
 
@@ -151,6 +164,11 @@ def main():
         from hebrew_rewriter import rewrite_pending_posts
         rewrite_pending_posts(limit=limit)
 
+    elif command == "generate":
+        limit = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+        from image_generator import generate_pending_images
+        generate_pending_images(limit=limit)
+
     elif command == "telegram":
         tg_cmd = sys.argv[2] if len(sys.argv) > 2 else "digest"
         os.system(f"{sys.executable} telegram_bot.py {tg_cmd}")
@@ -164,6 +182,8 @@ def main():
   python run.py scrape     - Only scrape new posts
   python run.py rewrite    - Only rewrite pending posts to Hebrew
   python run.py rewrite 20 - Rewrite up to 20 posts
+  python run.py generate   - Generate Hebrew carousel images
+  python run.py generate 5 - Generate up to 5 carousels
   python run.py telegram   - Send Telegram digest
         """)
 

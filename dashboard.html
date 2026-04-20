@@ -1134,9 +1134,14 @@ function renderPosts() {
     const isFav = favorites.includes(post.id);
     const initial = (post.author_name || post.author || 'A')[0].toUpperCase();
 
+    const cardImage = post.generated_images && post.generated_images.length > 0
+      ? post.generated_images[0].replace(/.*\/data\//, './data/')
+      : post.image_url;
+    const hasGenerated = post.generated_images && post.generated_images.length > 0;
+
     return `<div class="post-card" onclick="openModal(${idx})">
-      ${post.image_url
-        ? `<img class="post-image" src="${post.image_url}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="post-image-placeholder" style="display:none;">${post.platform === 'tiktok' ? '&#9654;' : '&#128247;'}</div>`
+      ${cardImage
+        ? `<div style="position:relative"><img class="post-image" src="${cardImage}" alt="" loading="lazy" onerror="this.style.display='none';">${hasGenerated ? '<span style="position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#6366f1,#ec4899);color:#fff;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:600;">🎨 עברית ' + post.generated_images.length + ' שקופיות</span>' : ''}</div>`
         : `<div class="post-image-placeholder">${post.platform === 'tiktok' ? '&#9654;' : '&#128247;'}</div>`
       }
       <div class="post-body">
@@ -1192,6 +1197,45 @@ function openModal(idx) {
     img.style.display = 'block';
   } else {
     img.style.display = 'none';
+  }
+
+  // Show generated carousel images
+  let carouselContainer = document.getElementById('modal-carousel');
+  if (!carouselContainer) {
+    carouselContainer = document.createElement('div');
+    carouselContainer.id = 'modal-carousel';
+    img.parentNode.insertBefore(carouselContainer, img.nextSibling);
+  }
+
+  if (post.generated_images && post.generated_images.length > 0) {
+    const images = post.generated_images.map(p => p.replace(/.*\/data\//, './data/'));
+    let currentSlide = 0;
+    carouselContainer.innerHTML = `
+      <div style="margin-top:16px;background:var(--bg-card);border-radius:12px;padding:12px;border:1px solid var(--accent-blue);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="background:linear-gradient(135deg,#6366f1,#ec4899);color:#fff;font-size:12px;padding:2px 10px;border-radius:12px;font-weight:600;">🎨 קרוסלה בעברית</span>
+          <span style="color:var(--text-secondary);font-size:13px;" id="carousel-counter">1 / ${images.length}</span>
+        </div>
+        <div style="position:relative;text-align:center;">
+          <img id="carousel-img" src="${images[0]}" style="max-width:100%;border-radius:8px;max-height:400px;" onerror="this.src='';this.alt='טוען...'">
+          ${images.length > 1 ? `
+            <div style="display:flex;justify-content:center;gap:8px;margin-top:8px;">
+              <button onclick="event.stopPropagation();changeSlide(-1)" style="background:var(--accent-blue);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;">→</button>
+              <button onclick="event.stopPropagation();changeSlide(1)" style="background:var(--accent-blue);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;">←</button>
+            </div>
+          ` : ''}
+        </div>
+      </div>`;
+
+    window._carouselImages = images;
+    window._carouselIdx = 0;
+    window.changeSlide = function(dir) {
+      window._carouselIdx = (window._carouselIdx + dir + window._carouselImages.length) % window._carouselImages.length;
+      document.getElementById('carousel-img').src = window._carouselImages[window._carouselIdx];
+      document.getElementById('carousel-counter').textContent = (window._carouselIdx + 1) + ' / ' + window._carouselImages.length;
+    };
+  } else {
+    carouselContainer.innerHTML = '';
   }
 
   document.getElementById('modal-platform').textContent = post.platform;
