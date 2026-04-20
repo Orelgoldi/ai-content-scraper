@@ -116,8 +116,15 @@ def scrape_instagram(client, config):
         actor = config["apify"]["actors"]["instagram"]
         run = client.actor(actor).call(run_input=run_input)
         dataset = client.dataset(run["defaultDatasetId"])
+        skipped_type = 0
 
         for item in dataset.iterate_items():
+            # Only keep carousel/sidecar posts
+            post_type = (item.get("type") or "").lower()
+            if post_type != "sidecar":
+                skipped_type += 1
+                continue
+
             post = {
                 "platform": "instagram",
                 "author": item.get("ownerUsername", ""),
@@ -132,17 +139,19 @@ def scrape_instagram(client, config):
                 "comments": item.get("commentsCount", 0),
                 "timestamp": item.get("timestamp", ""),
                 "hashtags": item.get("hashtags", []),
-                "type": item.get("type", "image"),
+                "type": "carousel",
                 "scraped_at": datetime.now(timezone.utc).isoformat(),
             }
             post["id"] = generate_post_id(post)
             posts.append(post)
-            print(f"  ✓ @{post['author']} - {post['likes']} likes")
+            print(f"  ✓ @{post['author']} - {post['likes']} likes (carousel)")
+
+        print(f"  📋 Skipped {skipped_type} non-carousel Instagram posts")
 
     except Exception as e:
         print(f"  ✗ Instagram error: {e}")
 
-    # Scrape specific profiles
+    # Scrape specific profiles (carousels only)
     for profile in scraping_config["profiles_to_track"].get("instagram", []):
         try:
             profile_input = {
@@ -153,6 +162,11 @@ def scrape_instagram(client, config):
             run = client.actor(actor).call(run_input=profile_input)
             dataset = client.dataset(run["defaultDatasetId"])
             for item in dataset.iterate_items():
+                # Only keep carousel/sidecar posts
+                post_type = (item.get("type") or "").lower()
+                if post_type != "sidecar":
+                    continue
+
                 post = {
                     "platform": "instagram",
                     "author": item.get("ownerUsername", profile),
@@ -167,7 +181,7 @@ def scrape_instagram(client, config):
                     "comments": item.get("commentsCount", 0),
                     "timestamp": item.get("timestamp", ""),
                     "hashtags": item.get("hashtags", []),
-                    "type": item.get("type", "image"),
+                    "type": "carousel",
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
@@ -195,8 +209,19 @@ def scrape_linkedin(client, config):
             }
             run = client.actor(actor).call(run_input=run_input)
             dataset = client.dataset(run["defaultDatasetId"])
+            skipped_type = 0
 
             for item in dataset.iterate_items():
+                # Only keep document/carousel posts (multiple images or document type)
+                post_type = (item.get("type") or "").lower()
+                images = item.get("images") or []
+                has_document = item.get("document") or item.get("documentUrl")
+                is_carousel = post_type in ("document", "carousel") or len(images) > 1 or has_document
+
+                if not is_carousel:
+                    skipped_type += 1
+                    continue
+
                 post = {
                     "platform": "linkedin",
                     "author": item.get("authorName", item.get("author", "")),
@@ -206,18 +231,20 @@ def scrape_linkedin(client, config):
                     "author_headline": item.get("authorHeadline", ""),
                     "text": item.get("text", item.get("content", "")),
                     "url": item.get("postUrl", item.get("url", "")),
-                    "image_url": item.get("imageUrl", item.get("images", [""])[0] if item.get("images") else ""),
+                    "image_url": item.get("imageUrl", images[0] if images else ""),
                     "video_url": item.get("videoUrl", ""),
                     "likes": item.get("numLikes", item.get("likes", 0)),
                     "comments": item.get("numComments", item.get("comments", 0)),
                     "shares": item.get("numShares", item.get("shares", 0)),
                     "timestamp": item.get("postedAt", item.get("date", "")),
-                    "type": "post",
+                    "type": "carousel",
                     "scraped_at": datetime.now(timezone.utc).isoformat(),
                 }
                 post["id"] = generate_post_id(post)
                 posts.append(post)
-                print(f"  ✓ {post['author'][:30]} - {post['likes']} likes")
+                print(f"  ✓ {post['author'][:30]} - {post['likes']} likes (carousel/document)")
+
+            print(f"  📋 Keyword '{keyword}': skipped {skipped_type} non-carousel posts")
 
         except Exception as e:
             print(f"  ✗ LinkedIn search '{keyword}' error: {e}")
@@ -422,11 +449,40 @@ def run_scraper():
     all_posts.extend(scrape_tiktok(client, config))
 
     # Process & deduplicate
-    new_count = 0
+    min_likes = int(os.environ.get("MIN_LIKES", 50))
+    max_posts = int(os.environ.get("MAX_POSTS", 300))
+    max_telegram = int(os.environ.get("MAX_TELEGRAM", 10))
+    min_likes_telegram = int(os.environ.get("MIN_LIKES_TELEGRAM", 200))
+
+    # Filter out duplicates, zero-engagement, and low-engagement posts
+    candidates = []
+    skipped_low = 0
+    skipped_zero = 0
     for post in all_posts:
         if post["id"] in existing_ids:
             continue
+        post_likes = post.get("likes", 0) or 0
+        post_comments = post.get("comments", 0) or 0
+        # Skip posts with zero engagement entirely
+        if post_likes == 0 and post_comments == 0:
+            skipped_zero += 1
+            continue
+        if post_likes < min_likes:
+            skipped_low += 1
+            continue
+        candidates.append(post)
 
+    # Sort by likes descending - keep only top MAX_POSTS
+    candidates.sort(key=lambda p: p.get("likes", 0) or 0, reverse=True)
+    top_posts = candidates[:max_posts]
+
+    print(f"  📊 Found {len(all_posts)} total, {len(candidates)} passed filter, keeping top {len(top_posts)}")
+    print(f"  📊 Skipped {skipped_zero} posts (zero engagement)")
+    print(f"  📊 Skipped {skipped_low} posts (under {min_likes} likes)")
+
+    new_count = 0
+    telegram_sent = 0
+    for post in top_posts:
         # Classify
         post["category"] = classify_post(post.get("text", ""), config)
         category_name = next(
@@ -446,8 +502,13 @@ def run_scraper():
         existing_ids.add(post["id"])
         new_count += 1
 
-        # Send Telegram notification
-        send_telegram_notification(post, config, category_name)
+        # Send Telegram notification only for top posts with enough likes (max 10 per run)
+        post_likes = post.get("likes", 0) or 0
+        if post_likes >= min_likes_telegram and telegram_sent < max_telegram:
+            send_telegram_notification(post, config, category_name)
+            telegram_sent += 1
+
+    print(f"  ✅ Added {new_count} posts, sent {telegram_sent} Telegram notifications")
 
     # Update stats
     db["stats"]["total"] = len(db["posts"])
