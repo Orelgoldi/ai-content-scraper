@@ -13,27 +13,38 @@
   },
   "scraping": {
     "keywords": [
-      "AI design",
-      "AI web design",
-      "figma AI",
-      "AI website builder",
-      "cursor AI",
-      "v0 dev",
-      "framer AI"
+      "Claude Code AI",
+      "Canva AI design",
+      "Figma AI features",
+      "Weavy AI",
+      "cursor AI coding",
+      "v0 dev AI",
+      "bolt.new AI",
+      "lovable dev AI",
+      "Claude Anthropic coding",
+      "AI no code builder"
     ],
     "hashtags_instagram": [
-      "#AIdesign", "#UIUX", "#FigmaAI", "#AItools", "#WebDesignAI"
+      "#ClaudeAI", "#CanvaAI", "#FigmaAI", "#CursorAI", "#AItools",
+      "#AIcoding", "#NoCodeAI", "#AIdesign", "#ArtificialIntelligence"
     ],
     "profiles_to_track": {
       "instagram": [
-        "uxdesign.cc", "figma", "thedesignteam", "ux_collective",
-        "designmilk", "dribbble", "theuxblog"
+        "figma", "canva", "anthropic_ai", "cursor_ai",
+        "ai.tools.daily", "designwithai", "nocode.ai",
+        "artificialintelligence.ai", "theaiexchange"
       ],
       "linkedin": [
-        "AI design", "generative AI UX", "AI web development"
+        "Claude Code Anthropic",
+        "Canva AI design tool",
+        "Figma AI features 2026",
+        "Weavy AI collaboration",
+        "cursor AI developer",
+        "AI tools for designers"
       ],
       "tiktok": [
-        "aidesigntips", "uxdesigntok", "webdesignai"
+        "claudeai", "canvaai", "figmadesign",
+        "cursorai", "aitoolsdaily", "nocodeai"
       ]
     },
     "max_posts_per_run": 50,
@@ -41,40 +52,40 @@
   },
   "categories": [
     {
-      "id": "ai_tools",
-      "name_en": "AI Tools & Platforms",
-      "name_he": "כלי AI ופלטפורמות",
-      "keywords": ["tool", "platform", "cursor", "v0", "bolt", "lovable", "framer", "webflow", "figma"]
+      "id": "ai_coding",
+      "name_en": "AI Coding Tools",
+      "name_he": "כלי קוד AI",
+      "keywords": ["claude", "cursor", "code", "coding", "copilot", "developer", "bolt", "lovable", "v0", "programming", "terminal"]
     },
     {
-      "id": "ui_ux_design",
-      "name_en": "UI/UX Design with AI",
-      "name_he": "עיצוב UI/UX עם AI",
-      "keywords": ["design", "UI", "UX", "prototype", "wireframe", "mockup", "figma"]
+      "id": "ai_design",
+      "name_en": "AI Design Tools",
+      "name_he": "כלי עיצוב AI",
+      "keywords": ["figma", "canva", "design", "UI", "UX", "prototype", "wireframe", "mockup", "weavy", "template"]
     },
     {
-      "id": "web_building",
-      "name_en": "AI Website Building",
-      "name_he": "בניית אתרים עם AI",
-      "keywords": ["website", "landing", "web", "build", "deploy", "code", "develop"]
+      "id": "ai_nocode",
+      "name_en": "AI No-Code Builders",
+      "name_he": "בניה ללא קוד עם AI",
+      "keywords": ["no code", "nocode", "website", "landing", "builder", "deploy", "bolt", "lovable", "framer", "webflow"]
     },
     {
-      "id": "gen_ai_art",
-      "name_en": "Generative AI Art",
-      "name_he": "אמנות גנרטיבית",
-      "keywords": ["midjourney", "dalle", "stable diffusion", "art", "generate", "image", "visual"]
+      "id": "ai_image",
+      "name_en": "AI Image & Video",
+      "name_he": "תמונה ווידאו AI",
+      "keywords": ["midjourney", "dalle", "stable diffusion", "image", "video", "generate", "visual", "sora", "runway"]
     },
     {
       "id": "tutorials",
       "name_en": "Tutorials & Tips",
       "name_he": "מדריכים וטיפים",
-      "keywords": ["tutorial", "tip", "how to", "guide", "learn", "course", "trick"]
+      "keywords": ["tutorial", "tip", "how to", "guide", "learn", "course", "trick", "workflow", "hack"]
     },
     {
       "id": "trends",
-      "name_en": "Trends & News",
-      "name_he": "טרנדים וחדשות",
-      "keywords": ["trend", "new", "launch", "update", "release", "announce", "future"]
+      "name_en": "AI News & Trends",
+      "name_he": "חדשות AI וטרנדים",
+      "keywords": ["trend", "new", "launch", "update", "release", "announce", "future", "breaking", "just dropped"]
     }
   ]
 }
