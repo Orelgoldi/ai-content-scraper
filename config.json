@@ -25,29 +25,15 @@
       "AI no code builder"
     ],
     "hashtags_instagram": [
-      "#ClaudeAI", "#CanvaAI", "#FigmaAI", "#CursorAI", "#AItools",
-      "#AIcoding", "#NoCodeAI", "#AIdesign", "#ArtificialIntelligence"
+      "#AItools", "#AIdesign", "#ClaudeAI", "#FigmaAI"
     ],
     "profiles_to_track": {
       "instagram": [
         "figma", "canva", "anthropic_ai", "cursor_ai",
-        "ai.tools.daily", "designwithai", "nocode.ai",
-        "artificialintelligence.ai", "theaiexchange"
-      ],
-      "linkedin": [
-        "Claude Code Anthropic",
-        "Canva AI design tool",
-        "Figma AI features 2026",
-        "Weavy AI collaboration",
-        "cursor AI developer",
-        "AI tools for designers"
-      ],
-      "tiktok": [
-        "claudeai", "canvaai", "figmadesign",
-        "cursorai", "aitoolsdaily", "nocodeai"
+        "ai.tools.daily", "theaiexchange"
       ]
     },
-    "max_posts_per_run": 50,
+    "max_posts_per_run": 30,
     "schedule_interval_hours": 6
   },
   "categories": [

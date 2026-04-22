@@ -15,7 +15,7 @@ from datetime import datetime
 
 BASE_DIR = Path(__file__).parent
 PORT = int(os.environ.get("PORT", 8080))
-SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", 3600))  # Default: every hour
+SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", 28800))  # Default: every 8 hours (3 runs/day)
 
 
 def run_pipeline():
@@ -23,7 +23,20 @@ def run_pipeline():
     print(f"\n🚀 Running full pipeline... ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
 
     try:
-        # Step 1: Scrape
+        # Step 0: Clean old non-carousel / non-Instagram posts from DB
+        db_path = BASE_DIR / "data" / "posts.json"
+        if db_path.exists():
+            with open(db_path, "r", encoding="utf-8") as f:
+                db = json.load(f)
+            before = len(db.get("posts", []))
+            db["posts"] = [p for p in db.get("posts", []) if p.get("is_carousel") and p.get("platform") == "instagram"]
+            after = len(db["posts"])
+            if before != after:
+                print(f"🧹 Cleaned DB: removed {before - after} non-carousel/non-Instagram posts (kept {after})")
+                with open(db_path, "w", encoding="utf-8") as f:
+                    json.dump(db, f, ensure_ascii=False, indent=2)
+
+        # Step 1: Scrape (Instagram carousels only)
         from scraper import run_scraper
         new_posts = run_scraper()
 

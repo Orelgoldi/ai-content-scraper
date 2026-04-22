@@ -70,10 +70,14 @@ def rewrite_with_nano_banana(text, category, platform):
     Configure your preferred method below.
     """
 
-    # ─── Option 1: Nano Banana MCP Direct ────────────────────────────────
-    # If Nano Banana provides a direct API endpoint:
+    # Debug: show which API will be used
     nano_banana_url = os.environ.get("NANO_BANANA_URL", "")
     nano_banana_key = os.environ.get("NANO_BANANA_API_KEY", "")
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    print(f"  🔑 APIs: NanoBanana={'YES' if nano_banana_url and nano_banana_key else 'NO'}, Gemini={'YES' if gemini_key else 'NO'} (key len={len(gemini_key)})")
+
+    # ─── Option 1: Nano Banana MCP Direct ────────────────────────────────
+    # If Nano Banana provides a direct API endpoint:
 
     if nano_banana_url and nano_banana_key:
         try:
@@ -159,10 +163,18 @@ def rewrite_with_nano_banana(text, category, platform):
             return data["candidates"][0]["content"]["parts"][0]["text"]
 
         except Exception as e:
-            print(f"  ⚠ Gemini API error: {e}")
+            print(f"  ⚠ Gemini API error: {type(e).__name__}: {e}")
+            # Print response body if available for debugging
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    print(f"  ⚠ Gemini response: {e.response.text[:500]}")
+                except:
+                    pass
+            return None
 
     # ─── No API configured ──────────────────────────────────────────────
-    print("  ⚠ No AI API configured. Set NANO_BANANA_URL + NANO_BANANA_API_KEY or GEMINI_API_KEY")
+    gemini_check = os.environ.get("GEMINI_API_KEY", "")
+    print(f"  ⚠ No AI API configured. GEMINI_API_KEY={'SET' if gemini_check else 'NOT SET'} (len={len(gemini_check)})")
     return None
 
 

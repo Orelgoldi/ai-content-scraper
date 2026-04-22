@@ -166,110 +166,95 @@ def download_image(url, post_id):
         return None
 
 
-# ─── Instagram Scraper ───────────────────────────────────────────────────────
+# ─── Instagram Scraper (EFFICIENT: max 2 Apify calls) ────────────────────────
+def _parse_instagram_items(items, posts):
+    """Parse Apify Instagram items into post dicts. Shared by both calls."""
+    carousel_count = 0
+    other_count = 0
+    for item in items:
+        is_car = detect_carousel(item)
+        car_images = extract_carousel_images(item) if is_car else []
+        raw_type = item.get("type") or item.get("productType") or item.get("__typename") or "unknown"
+        likes = item.get("likesCount", 0) or 0
+        comments = item.get("commentsCount", 0) or 0
+
+        if is_car:
+            carousel_count += 1
+        else:
+            other_count += 1
+
+        post = {
+            "platform": "instagram",
+            "author": item.get("ownerUsername", ""),
+            "author_name": item.get("ownerFullName", ""),
+            "author_url": f"https://instagram.com/{item.get('ownerUsername', '')}",
+            "author_followers": item.get("ownerFollowerCount", 0),
+            "text": item.get("caption", ""),
+            "url": item.get("url", ""),
+            "image_url": item.get("displayUrl", ""),
+            "video_url": item.get("videoUrl", ""),
+            "likes": likes,
+            "comments": comments,
+            "engagement": likes + comments,
+            "timestamp": item.get("timestamp", ""),
+            "hashtags": item.get("hashtags", []),
+            "type": "carousel" if is_car else str(raw_type).lower(),
+            "is_carousel": is_car,
+            "carousel_images": car_images,
+            "slides_count": len(car_images) if car_images else item.get("childPostsCount", 0),
+            "scraped_at": datetime.now(timezone.utc).isoformat(),
+        }
+        post["id"] = generate_post_id(post)
+        posts.append(post)
+        if is_car:
+            print(f"  🎠 @{post['author']} - {likes} likes, {comments} comments (CAROUSEL {post['slides_count']} slides)")
+    return carousel_count, other_count
+
+
 def scrape_instagram(client, config):
-    print("\n📸 Scraping Instagram...")
+    print("\n📸 Scraping Instagram (2 Apify calls max)...")
     posts = []
     scraping_config = config["scraping"]
     actor = config["apify"]["actors"]["instagram"]
 
-    # Scrape by hashtags
-    run_input = {
-        "directUrls": [f"https://www.instagram.com/explore/tags/{tag.strip('#')}/"
-                       for tag in scraping_config["hashtags_instagram"][:5]],
-        "resultsLimit": scraping_config["max_posts_per_run"],
-        "resultsType": "posts",
-        "searchType": "hashtag",
-    }
-
-    try:
-        run = client.actor(actor).call(run_input=run_input)
-        dataset = client.dataset(run["defaultDatasetId"])
-        carousel_count = 0
-        other_count = 0
-
-        for item in dataset.iterate_items():
-            is_car = detect_carousel(item)
-            car_images = extract_carousel_images(item) if is_car else []
-            raw_type = item.get("type") or item.get("productType") or item.get("__typename") or "unknown"
-
-            print(f"  📋 type={raw_type} is_carousel={is_car} keys={sorted(item.keys())[:8]}")
-
-            if is_car:
-                carousel_count += 1
-            else:
-                other_count += 1
-
-            post = {
-                "platform": "instagram",
-                "author": item.get("ownerUsername", ""),
-                "author_name": item.get("ownerFullName", ""),
-                "author_url": f"https://instagram.com/{item.get('ownerUsername', '')}",
-                "author_followers": item.get("ownerFollowerCount", 0),
-                "text": item.get("caption", ""),
-                "url": item.get("url", ""),
-                "image_url": item.get("displayUrl", ""),
-                "video_url": item.get("videoUrl", ""),
-                "likes": item.get("likesCount", 0),
-                "comments": item.get("commentsCount", 0),
-                "timestamp": item.get("timestamp", ""),
-                "hashtags": item.get("hashtags", []),
-                "type": "carousel" if is_car else str(raw_type).lower(),
-                "is_carousel": is_car,
-                "carousel_images": car_images,
-                "slides_count": len(car_images) if car_images else item.get("childPostsCount", 0),
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
-            }
-            post["id"] = generate_post_id(post)
-            posts.append(post)
-            print(f"  ✓ @{post['author']} - {post['likes']} likes ({post['type']})")
-
-        print(f"  📊 Hashtags: {carousel_count} carousels, {other_count} other")
-
-    except Exception as e:
-        print(f"  ✗ Instagram hashtag error: {e}")
-
-    # Scrape specific profiles
-    for profile in scraping_config["profiles_to_track"].get("instagram", []):
+    # ── Call 1: Hashtag search (ALL hashtags in ONE call) ──────────────
+    hashtags = scraping_config.get("hashtags_instagram", [])[:4]  # max 4 hashtags
+    if hashtags:
+        print(f"  🔍 Searching {len(hashtags)} hashtags in ONE call...")
+        run_input = {
+            "directUrls": [f"https://www.instagram.com/explore/tags/{tag.strip('#')}/"
+                           for tag in hashtags],
+            "resultsLimit": scraping_config.get("max_posts_per_run", 50),
+            "resultsType": "posts",
+            "searchType": "hashtag",
+        }
         try:
-            profile_input = {
-                "directUrls": [f"https://www.instagram.com/{profile}/"],
-                "resultsLimit": 10,
-                "resultsType": "posts",
-            }
+            run = client.actor(actor).call(run_input=run_input)
+            dataset = client.dataset(run["defaultDatasetId"])
+            car, other = _parse_instagram_items(dataset.iterate_items(), posts)
+            print(f"  📊 Hashtags result: {car} carousels, {other} other")
+        except Exception as e:
+            print(f"  ✗ Instagram hashtag error: {e}")
+
+    # ── Call 2: ALL profiles in ONE call ──────────────────────────────
+    profiles = scraping_config.get("profiles_to_track", {}).get("instagram", [])
+    if profiles:
+        print(f"  🔍 Scanning {len(profiles)} profiles in ONE call...")
+        profile_input = {
+            "directUrls": [f"https://www.instagram.com/{p}/" for p in profiles],
+            "resultsLimit": 10 * len(profiles),  # ~10 per profile
+            "resultsType": "posts",
+        }
+        try:
             run = client.actor(actor).call(run_input=profile_input)
             dataset = client.dataset(run["defaultDatasetId"])
-            for item in dataset.iterate_items():
-                is_car = detect_carousel(item)
-                car_images = extract_carousel_images(item) if is_car else []
-                raw_type = item.get("type") or "unknown"
-
-                post = {
-                    "platform": "instagram",
-                    "author": item.get("ownerUsername", profile),
-                    "author_name": item.get("ownerFullName", ""),
-                    "author_url": f"https://instagram.com/{profile}",
-                    "author_followers": item.get("ownerFollowerCount", 0),
-                    "text": item.get("caption", ""),
-                    "url": item.get("url", ""),
-                    "image_url": item.get("displayUrl", ""),
-                    "video_url": item.get("videoUrl", ""),
-                    "likes": item.get("likesCount", 0),
-                    "comments": item.get("commentsCount", 0),
-                    "timestamp": item.get("timestamp", ""),
-                    "hashtags": item.get("hashtags", []),
-                    "type": "carousel" if is_car else str(raw_type).lower(),
-                    "is_carousel": is_car,
-                    "carousel_images": car_images,
-                    "slides_count": len(car_images) if car_images else 0,
-                    "scraped_at": datetime.now(timezone.utc).isoformat(),
-                }
-                post["id"] = generate_post_id(post)
-                posts.append(post)
+            car, other = _parse_instagram_items(dataset.iterate_items(), posts)
+            print(f"  📊 Profiles result: {car} carousels, {other} other")
         except Exception as e:
-            print(f"  ✗ Profile {profile} error: {e}")
+            print(f"  ✗ Instagram profiles error: {e}")
 
-    print(f"  📊 Total Instagram posts: {len(posts)}")
+    total_carousels = sum(1 for p in posts if p.get("is_carousel"))
+    print(f"  📊 Total: {len(posts)} posts ({total_carousels} carousels)")
     return posts
 
 
@@ -511,15 +496,16 @@ def run_scraper():
     # Initialize Apify client
     client = ApifyClient(config["apify"]["token"])
 
-    # Scrape all platforms
+    # Scrape ONLY Instagram (user requirement: only Instagram carousels)
     all_posts = []
     all_posts.extend(scrape_instagram(client, config))
-    all_posts.extend(scrape_linkedin(client, config))
-    all_posts.extend(scrape_tiktok(client, config))
+    # LinkedIn and TikTok disabled per user request
+    # all_posts.extend(scrape_linkedin(client, config))
+    # all_posts.extend(scrape_tiktok(client, config))
 
-    print(f"\n📦 Raw total: {len(all_posts)} posts scraped")
+    print(f"\n📦 Raw total: {len(all_posts)} posts scraped from Instagram")
 
-    # ─── Filter & Sort ────────────────────────────────────────────────────
+    # ─── Filter: ONLY CAROUSELS ──────────────────────────────────────────
     min_likes = int(os.environ.get("MIN_LIKES", 10))
     max_posts = int(os.environ.get("MAX_POSTS", 300))
     max_telegram = int(os.environ.get("MAX_TELEGRAM", 10))
@@ -530,10 +516,16 @@ def run_scraper():
     skipped_dup = 0
     skipped_old = 0
     skipped_low = 0
+    skipped_not_carousel = 0
 
     for post in all_posts:
         if post["id"] in existing_ids:
             skipped_dup += 1
+            continue
+
+        # STRICT FILTER: only carousels
+        if not post.get("is_carousel"):
+            skipped_not_carousel += 1
             continue
 
         # Filter: only last N days
@@ -549,18 +541,14 @@ def run_scraper():
 
         candidates.append(post)
 
-    # Sort: carousels first, then by likes
-    candidates.sort(key=lambda p: (
-        1 if p.get("is_carousel") else 0,  # carousels first
-        p.get("likes", 0) or 0              # then by likes
-    ), reverse=True)
+    # Sort by engagement (likes + comments) descending — best content first
+    candidates.sort(key=lambda p: (p.get("likes", 0) or 0) + (p.get("comments", 0) or 0), reverse=True)
 
     top_posts = candidates[:max_posts]
 
-    print(f"  📊 {len(candidates)} passed filters, keeping top {len(top_posts)}")
-    print(f"  📊 Skipped: {skipped_dup} duplicates, {skipped_old} old (>{max_days}d), {skipped_low} low (<{min_likes} likes)")
-    carousels_in = sum(1 for p in top_posts if p.get("is_carousel"))
-    print(f"  🎠 Carousels in final set: {carousels_in}/{len(top_posts)}")
+    print(f"  📊 {len(candidates)} carousels passed filters, keeping top {len(top_posts)}")
+    print(f"  📊 Skipped: {skipped_not_carousel} not carousel, {skipped_dup} duplicates, {skipped_old} old (>{max_days}d), {skipped_low} low (<{min_likes} likes)")
+    print(f"  🎠 ALL {len(top_posts)} posts are Instagram carousels")
 
     new_count = 0
     telegram_sent = 0
@@ -578,9 +566,9 @@ def run_scraper():
         existing_ids.add(post["id"])
         new_count += 1
 
-        # Telegram: send carousels first, then top liked
+        # Telegram: send top carousels (all posts are carousels now)
         post_likes = post.get("likes", 0) or 0
-        if telegram_sent < max_telegram and (post.get("is_carousel") or post_likes >= min_likes_telegram):
+        if telegram_sent < max_telegram:
             send_telegram_notification(post, config, category_name)
             telegram_sent += 1
 
