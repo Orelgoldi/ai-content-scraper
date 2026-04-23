@@ -85,47 +85,93 @@ def split_to_slides(hebrew_text, num_slides):
     return slides
 
 
+# ─── Style Presets ────────────────────────────────────────────────────────
+STYLE_PRESETS = {
+    "modern_dark": "Modern dark design with gradient background (dark purple/blue/black). Neon accent colors. Clean geometric shapes.",
+    "minimalist": "Minimalist white/light background. Lots of whitespace. Simple typography. Subtle shadows.",
+    "gradient_bold": "Bold colorful gradients (pink, purple, orange). Large bold text. Energetic and eye-catching.",
+    "professional": "Professional corporate look. Navy/dark blue tones. Clean lines. Business-appropriate.",
+    "creative": "Creative and artistic. Brush strokes, textures, organic shapes. Warm earthy or vibrant colors.",
+    "tech": "Tech/futuristic style. Dark background with glowing elements, circuit patterns, matrix-like accents.",
+    "pastel": "Soft pastel colors (pink, mint, lavender). Rounded shapes. Friendly and approachable.",
+    "custom": "",  # User provides their own style description
+}
+
+
 # ─── Gemini Image Generation ──────────────────────────────────────────────
-def generate_slide_image(gemini_key, slide_text, slide_num, total_slides, category, platform):
+def generate_slide_image(gemini_key, slide_text, slide_num, total_slides, category, platform, style="modern_dark", reference_url=None):
     """Generate a single carousel slide image using Gemini."""
 
     slide_context = ""
     if slide_num == 1:
-        slide_context = "זו שקופית הפתיחה/כותרת של הקרוסלה. צריכה לתפוס תשומת לב ולהיות מושכת."
+        slide_context = "This is the OPENING/TITLE slide. It should grab attention and be visually striking."
     elif slide_num == total_slides:
-        slide_context = "זו שקופית הסיום. צריכה לכלול קריאה לפעולה או סיכום."
+        slide_context = "This is the CLOSING slide. Include a call-to-action or summary feel."
     else:
-        slide_context = f"זו שקופית {slide_num} מתוך {total_slides}. שקופית תוכן."
+        slide_context = f"This is content slide {slide_num} of {total_slides}."
 
-    prompt = f"""Create a professional, modern social media carousel slide image.
+    # Get style description
+    style_desc = STYLE_PRESETS.get(style, STYLE_PRESETS["modern_dark"])
+    if style == "custom" and not style_desc:
+        style_desc = "Modern, clean professional design."
 
-Requirements:
-- The slide MUST contain the following Hebrew text (RTL direction): "{slide_text}"
-- Modern, clean design with gradient background
-- Professional typography for Hebrew text
+    prompt = f"""Create a social media carousel slide image for Instagram.
+
+CRITICAL REQUIREMENTS:
+- The slide MUST contain this Hebrew text (RTL direction, right-to-left): "{slide_text}"
+- Hebrew text must be large, readable, and the main focus of the slide
+- Do NOT add any English text
+- Aspect ratio: square (1080x1080)
+
+DESIGN STYLE:
+{style_desc}
+
+CONTEXT:
 - {slide_context}
 - Slide {slide_num} of {total_slides}
 - Category: {category}
-- Platform style: {platform}
-- Use modern colors (dark backgrounds with accent colors like purple, blue, or gradient)
-- The Hebrew text should be large, readable, and be the main focus
-- Add subtle design elements (lines, shapes, icons) but keep text as hero
-- Aspect ratio: square (1:1) for Instagram, or 4:5 portrait
-- Do NOT add any English text
-- Make it look like a professional Israeli content creator made it"""
+- Professional Israeli content creator style
+- Add subtle design elements but keep text as hero"""
+
+    # Build request parts
+    parts = [{"text": prompt}]
+
+    # Add reference image if provided
+    if reference_url:
+        try:
+            print(f"    📎 Downloading reference image...")
+            ref_resp = requests.get(reference_url, timeout=15)
+            ref_resp.raise_for_status()
+            ref_b64 = base64.b64encode(ref_resp.content).decode()
+            content_type = ref_resp.headers.get("Content-Type", "image/jpeg")
+            parts.insert(0, {
+                "inline_data": {
+                    "mime_type": content_type,
+                    "data": ref_b64
+                }
+            })
+            parts[1] = {"text": f"Use the attached image as a STYLE REFERENCE. Match its visual style, colors, and layout approach. Then create a new slide with this content:\n\n{prompt}"}
+            print(f"    ✅ Reference image attached ({len(ref_resp.content) // 1024}KB)")
+        except Exception as e:
+            print(f"    ⚠ Could not load reference image: {e}")
 
     try:
         resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={gemini_key}",
-            headers={"Content-Type": "application/json"},
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": gemini_key,
+            },
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
+                "contents": [{"parts": parts}],
                 "generationConfig": {
-                    "responseModalities": ["IMAGE", "TEXT"],
-                    "responseMimeType": "image/png",
+                    "responseModalities": ["TEXT", "IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": "1:1",
+                    }
                 }
             },
-            timeout=60,
+            timeout=120,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -134,25 +180,34 @@ Requirements:
         candidates = data.get("candidates", [])
         if not candidates:
             print(f"    ⚠ No candidates in Gemini response")
+            # Print response for debugging
+            print(f"    ⚠ Response: {json.dumps(data)[:500]}")
             return None
 
-        parts = candidates[0].get("content", {}).get("parts", [])
-        for part in parts:
+        parts_resp = candidates[0].get("content", {}).get("parts", [])
+        for part in parts_resp:
             if "inlineData" in part:
                 image_data = part["inlineData"].get("data", "")
-                mime_type = part["inlineData"].get("mimeType", "image/png")
                 if image_data:
                     return base64.b64decode(image_data)
 
-        print(f"    ⚠ No image data in Gemini response")
+        print(f"    ⚠ No image data in Gemini response parts")
+        print(f"    ⚠ Parts: {json.dumps([{k: v[:50] if isinstance(v, str) else v for k, v in p.items()} for p in parts_resp])[:500]}")
         return None
 
+    except requests.exceptions.HTTPError as e:
+        print(f"    ⚠ Gemini API HTTP error: {e}")
+        try:
+            print(f"    ⚠ Response body: {e.response.text[:500]}")
+        except:
+            pass
+        return None
     except Exception as e:
         print(f"    ⚠ Gemini image generation error: {e}")
         return None
 
 
-def generate_carousel(post, config):
+def generate_carousel(post, config, style="modern_dark", reference_url=None):
     """Generate full carousel images for a post."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key:
@@ -210,6 +265,8 @@ def generate_carousel(post, config):
             total_slides=num_slides,
             category=category_name,
             platform=post.get("platform", "instagram"),
+            style=style,
+            reference_url=reference_url if i == 1 else None,  # Reference only for first slide to save API calls
         )
 
         if image_data:

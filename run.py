@@ -147,12 +147,31 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
+            # Read POST body for style and reference options
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = {}
+            if content_length > 0:
+                raw = self.rfile.read(content_length)
+                try:
+                    body = json.loads(raw.decode('utf-8'))
+                except:
+                    pass
+
+            style = body.get("style", "modern_dark")
+            reference_url = body.get("reference_url", None)
+            custom_style = body.get("custom_style", "")
+
+            # If custom style text provided, use it
+            if style == "custom" and custom_style:
+                from image_generator import STYLE_PRESETS
+                STYLE_PRESETS["custom"] = custom_style
+
             # Generate carousel images
             from image_generator import generate_carousel
-            result = generate_carousel(post, config)
+            result = generate_carousel(post, config, style=style, reference_url=reference_url)
 
             if result is None:
-                self._send_json_error(500, "Image generation returned no results")
+                self._send_json_error(500, "Image generation returned no results - check Gemini API key and model")
                 return
 
             # Update the post in the database

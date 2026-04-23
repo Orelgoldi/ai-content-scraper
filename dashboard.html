@@ -505,6 +505,23 @@
     margin-top: 12px;
   }
 
+  /* Style Option Buttons */
+  .style-option {
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-primary);
+    padding: 10px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .style-option:hover { border-color: var(--accent-blue); background: var(--bg-card); }
+  .style-option.selected { border-color: var(--accent-purple); background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+
   /* Modal */
   .modal-overlay {
     position: fixed;
@@ -816,6 +833,65 @@
         <div class="modal-hebrew-title">גרסה בעברית (Nano Banana)</div>
         <div class="modal-hebrew-text" id="modal-hebrew-text"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Modal -->
+<div class="modal-overlay" id="generate-overlay" onclick="closeGenerateModal(event)">
+  <div class="modal-content" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;">🎨</span>
+        <div>
+          <div class="author-name">גנרט תמונות קרוסלה</div>
+          <div class="author-handle">בחר סגנון ורפרנס</div>
+        </div>
+      </div>
+      <button class="modal-close" onclick="closeGenerateModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="gen-post-id">
+
+      <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">סגנון עיצוב:</label>
+      <div id="style-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+        <button class="style-option selected" data-style="modern_dark" onclick="selectStyle(this)">
+          <span style="font-size:18px;">🌑</span> מודרני כהה
+        </button>
+        <button class="style-option" data-style="gradient_bold" onclick="selectStyle(this)">
+          <span style="font-size:18px;">🌈</span> גרדיאנט בולט
+        </button>
+        <button class="style-option" data-style="minimalist" onclick="selectStyle(this)">
+          <span style="font-size:18px;">⬜</span> מינימליסטי
+        </button>
+        <button class="style-option" data-style="professional" onclick="selectStyle(this)">
+          <span style="font-size:18px;">💼</span> פרופשנל
+        </button>
+        <button class="style-option" data-style="creative" onclick="selectStyle(this)">
+          <span style="font-size:18px;">🎨</span> קריאטיבי
+        </button>
+        <button class="style-option" data-style="tech" onclick="selectStyle(this)">
+          <span style="font-size:18px;">🤖</span> טכנולוגי
+        </button>
+        <button class="style-option" data-style="pastel" onclick="selectStyle(this)">
+          <span style="font-size:18px;">🍬</span> פסטל
+        </button>
+        <button class="style-option" data-style="custom" onclick="selectStyle(this)">
+          <span style="font-size:18px;">✏️</span> מותאם אישית
+        </button>
+      </div>
+
+      <div id="custom-style-wrap" style="display:none;margin-bottom:16px;">
+        <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">תאר את הסגנון הרצוי:</label>
+        <textarea id="custom-style-text" placeholder="למשל: סגנון Y2K רטרו עם ורוד ניאון וטקסטורות גראנג'" style="width:100%;min-height:60px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);padding:8px;font-family:inherit;font-size:13px;resize:vertical;"></textarea>
+      </div>
+
+      <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">🔗 תמונת רפרנס (URL, לא חובה):</label>
+      <input type="text" id="gen-reference-url" placeholder="https://example.com/reference-style.jpg" style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);padding:8px 12px;font-family:inherit;font-size:13px;margin-bottom:16px;">
+
+      <button class="generate-btn modal-gen-btn" id="gen-submit-btn" onclick="submitGenerate()">🎨 התחל גנרציה</button>
+
+      <div id="gen-status" style="display:none;text-align:center;margin-top:12px;padding:12px;border-radius:8px;font-size:13px;"></div>
     </div>
   </div>
 </div>
@@ -1199,7 +1275,7 @@ function renderPosts() {
           <span class="hebrew-badge ${post.hebrew_status === 'done' ? 'done' : 'pending'}">
             ${post.hebrew_status === 'done' ? 'עברית ✓' : 'ממתין לתרגום'}
           </span>
-          ${post.hebrew_status === 'done' && !hasGenerated ? `<button class="generate-btn" onclick="event.stopPropagation();generateImages('${post.id}', this)" title="גנרט תמונות בעברית">🎨 גנרט תמונות</button>` : ''}
+          ${post.hebrew_status === 'done' && !hasGenerated ? `<button class="generate-btn" onclick="event.stopPropagation();openGenerateModal('${post.id}')" title="גנרט תמונות בעברית">🎨 גנרט תמונות</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -1298,7 +1374,7 @@ function openModal(idx) {
     hebrewSection.parentNode.insertBefore(modalGenBtn, hebrewSection.nextSibling);
   }
   if (post.hebrew_status === 'done' && (!post.generated_images || post.generated_images.length === 0)) {
-    modalGenBtn.innerHTML = `<button class="generate-btn modal-gen-btn" onclick="generateImages('${post.id}', this)">🎨 גנרט תמונות קרוסלה בעברית</button>`;
+    modalGenBtn.innerHTML = `<button class="generate-btn modal-gen-btn" onclick="openGenerateModal('${post.id}')">🎨 גנרט תמונות קרוסלה בעברית</button>`;
     modalGenBtn.style.display = 'block';
   } else {
     modalGenBtn.style.display = 'none';
@@ -1319,37 +1395,89 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── Generate Images On Demand ───────────────────────────────────────────
-async function generateImages(postId, btn) {
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '⏳ מגנרט תמונות...';
-  }
+let selectedStyle = 'modern_dark';
+
+function openGenerateModal(postId) {
+  document.getElementById('gen-post-id').value = postId;
+  document.getElementById('gen-reference-url').value = '';
+  document.getElementById('custom-style-text').value = '';
+  document.getElementById('custom-style-wrap').style.display = 'none';
+  document.getElementById('gen-status').style.display = 'none';
+  document.getElementById('gen-submit-btn').disabled = false;
+  document.getElementById('gen-submit-btn').textContent = '🎨 התחל גנרציה';
+
+  // Reset style selection
+  selectedStyle = 'modern_dark';
+  document.querySelectorAll('.style-option').forEach(b => b.classList.remove('selected'));
+  document.querySelector('.style-option[data-style="modern_dark"]').classList.add('selected');
+
+  // Close the post modal if open
+  document.getElementById('modal-overlay').classList.remove('active');
+
+  document.getElementById('generate-overlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeGenerateModal(e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById('generate-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function selectStyle(btn) {
+  document.querySelectorAll('.style-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedStyle = btn.dataset.style;
+  document.getElementById('custom-style-wrap').style.display = selectedStyle === 'custom' ? 'block' : 'none';
+}
+
+async function submitGenerate() {
+  const postId = document.getElementById('gen-post-id').value;
+  const referenceUrl = document.getElementById('gen-reference-url').value.trim();
+  const customStyle = document.getElementById('custom-style-text').value.trim();
+  const btn = document.getElementById('gen-submit-btn');
+  const status = document.getElementById('gen-status');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ מגנרט תמונות... (יכול לקחת דקה-שתיים)';
+  status.style.display = 'block';
+  status.style.background = 'rgba(99, 102, 241, 0.15)';
+  status.style.color = 'var(--accent-blue)';
+  status.textContent = '🔄 שולח בקשה ל-Gemini...';
 
   try {
-    const resp = await fetch(`/api/generate/${postId}`, { method: 'POST' });
+    const body = { style: selectedStyle };
+    if (referenceUrl) body.reference_url = referenceUrl;
+    if (selectedStyle === 'custom' && customStyle) body.custom_style = customStyle;
+
+    const resp = await fetch(`/api/generate/${postId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
     const data = await resp.json();
 
     if (data.success) {
-      // Refresh the data
+      status.style.background = 'rgba(16, 185, 129, 0.15)';
+      status.style.color = 'var(--accent-green)';
+      status.textContent = `✅ ${data.images_count} תמונות נוצרו בהצלחה!`;
+      btn.textContent = '✅ הושלם!';
+      btn.style.background = 'var(--accent-green)';
       await loadData();
-      if (btn) {
-        btn.textContent = `✅ ${data.images_count} תמונות נוצרו!`;
-        btn.style.background = 'var(--accent-green)';
-        setTimeout(() => { if (btn.closest('.modal-content')) closeModal({target: document.getElementById('modal-overlay'), currentTarget: document.getElementById('modal-overlay')}); }, 1500);
-      }
+      setTimeout(() => closeGenerateModal(), 2000);
     } else {
-      alert('שגיאה: ' + (data.error || 'Unknown error'));
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = '🎨 גנרט תמונות';
-      }
+      status.style.background = 'rgba(239, 68, 68, 0.15)';
+      status.style.color = '#ef4444';
+      status.textContent = '❌ שגיאה: ' + (data.error || 'Unknown error');
+      btn.disabled = false;
+      btn.textContent = '🎨 נסה שוב';
     }
   } catch (err) {
-    alert('שגיאה בחיבור: ' + err.message);
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '🎨 גנרט תמונות';
-    }
+    status.style.background = 'rgba(239, 68, 68, 0.15)';
+    status.style.color = '#ef4444';
+    status.textContent = '❌ שגיאת חיבור: ' + err.message;
+    btn.disabled = false;
+    btn.textContent = '🎨 נסה שוב';
   }
 }
 
