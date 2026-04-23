@@ -855,7 +855,10 @@
 
       <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">סגנון עיצוב:</label>
       <div id="style-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
-        <button class="style-option selected" data-style="modern_dark" onclick="selectStyle(this)">
+        <button class="style-option selected" data-style="original" onclick="selectStyle(this)" style="grid-column:1/-1;">
+          <span style="font-size:18px;">🔄</span> שחזור מקורי — אותו עיצוב, טקסט בעברית
+        </button>
+        <button class="style-option" data-style="modern_dark" onclick="selectStyle(this)">
           <span style="font-size:18px;">🌑</span> מודרני כהה
         </button>
         <button class="style-option" data-style="gradient_bold" onclick="selectStyle(this)">
@@ -1395,7 +1398,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── Generate Images On Demand ───────────────────────────────────────────
-let selectedStyle = 'modern_dark';
+let selectedStyle = 'original';
 
 function openGenerateModal(postId) {
   document.getElementById('gen-post-id').value = postId;
@@ -1407,9 +1410,9 @@ function openGenerateModal(postId) {
   document.getElementById('gen-submit-btn').textContent = '🎨 התחל גנרציה';
 
   // Reset style selection
-  selectedStyle = 'modern_dark';
+  selectedStyle = 'original';
   document.querySelectorAll('.style-option').forEach(b => b.classList.remove('selected'));
-  document.querySelector('.style-option[data-style="modern_dark"]').classList.add('selected');
+  document.querySelector('.style-option[data-style="original"]').classList.add('selected');
 
   // Close the post modal if open
   document.getElementById('modal-overlay').classList.remove('active');

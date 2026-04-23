@@ -157,7 +157,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 except:
                     pass
 
-            style = body.get("style", "modern_dark")
+            style = body.get("style", "original")
             reference_url = body.get("reference_url", None)
             custom_style = body.get("custom_style", "")
 

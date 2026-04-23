@@ -87,6 +87,7 @@ def split_to_slides(hebrew_text, num_slides):
 
 # ─── Style Presets ────────────────────────────────────────────────────────
 STYLE_PRESETS = {
+    "original": "Keep the EXACT same visual design, layout, colors, fonts, and style as the original image. Only replace the text.",
     "modern_dark": "Modern dark design with gradient background (dark purple/blue/black). Neon accent colors. Clean geometric shapes.",
     "minimalist": "Minimalist white/light background. Lots of whitespace. Simple typography. Subtle shadows.",
     "gradient_bold": "Bold colorful gradients (pink, purple, orange). Large bold text. Energetic and eye-catching.",
@@ -98,66 +99,120 @@ STYLE_PRESETS = {
 }
 
 
+# ─── Download Image Helper ───────────────────────────────────────────────
+def download_image_to_base64(url, timeout=20):
+    """Download an image URL and return (base64_data, mime_type) or (None, None)."""
+    try:
+        resp = requests.get(url, timeout=timeout, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; ContentScraper/1.0)"
+        })
+        resp.raise_for_status()
+        content_type = resp.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+        if "webp" in url or "webp" in content_type:
+            content_type = "image/webp"
+        elif "png" in url:
+            content_type = "image/png"
+        elif content_type not in ("image/jpeg", "image/png", "image/webp", "image/gif"):
+            content_type = "image/jpeg"
+        b64 = base64.b64encode(resp.content).decode()
+        return b64, content_type
+    except Exception as e:
+        print(f"    ⚠ Image download failed: {e}")
+        return None, None
+
+
 # ─── Gemini Image Generation ──────────────────────────────────────────────
-def generate_slide_image(gemini_key, slide_text, slide_num, total_slides, category, platform, style="modern_dark", reference_url=None):
-    """Generate a single carousel slide image using Gemini."""
+def generate_slide_image(gemini_key, slide_text, original_image_url=None, slide_num=1, total_slides=1, style="original", extra_reference_url=None):
+    """
+    Generate a carousel slide by taking the ORIGINAL image and recreating it with Hebrew text.
+    If no original image, generates from scratch.
+    """
 
-    slide_context = ""
-    if slide_num == 1:
-        slide_context = "This is the OPENING/TITLE slide. It should grab attention and be visually striking."
-    elif slide_num == total_slides:
-        slide_context = "This is the CLOSING slide. Include a call-to-action or summary feel."
-    else:
-        slide_context = f"This is content slide {slide_num} of {total_slides}."
-
-    # Get style description
-    style_desc = STYLE_PRESETS.get(style, STYLE_PRESETS["modern_dark"])
+    # ── Build the prompt ──────────────────────────────────────────────
+    style_desc = STYLE_PRESETS.get(style, STYLE_PRESETS["original"])
     if style == "custom" and not style_desc:
-        style_desc = "Modern, clean professional design."
+        style_desc = "Keep the same style as the original."
 
-    prompt = f"""Create a social media carousel slide image for Instagram.
+    parts = []
 
-CRITICAL REQUIREMENTS:
-- The slide MUST contain this Hebrew text (RTL direction, right-to-left): "{slide_text}"
-- Hebrew text must be large, readable, and the main focus of the slide
-- Do NOT add any English text
-- Aspect ratio: square (1080x1080)
+    # ── Attach original image (the core of the approach) ─────────────
+    if original_image_url:
+        print(f"    📎 Downloading original slide {slide_num}...")
+        b64, mime = download_image_to_base64(original_image_url)
+        if b64:
+            parts.append({
+                "inline_data": {"mime_type": mime, "data": b64}
+            })
+            print(f"    ✅ Original image loaded")
 
-DESIGN STYLE:
+            if style == "original":
+                # EXACT recreation with Hebrew text
+                parts.append({"text": f"""Look at this carousel slide image carefully.
+
+YOUR TASK: Recreate this EXACT image but replace ALL text with the following Hebrew text (RTL, right-to-left direction):
+
+"{slide_text}"
+
+CRITICAL RULES:
+1. Keep the EXACT SAME visual design — same layout, same colors, same background, same graphics, same icons, same decorative elements
+2. ONLY change the text content from English to the Hebrew text above
+3. Hebrew text must read right-to-left (RTL direction)
+4. Keep the same font sizes, text positions, and text hierarchy
+5. Keep the same aspect ratio as the original
+6. Do NOT add any English text
+7. The result should look like the original creator made a Hebrew version of their own post"""})
+            else:
+                # Redesign with a new style but same content
+                parts.append({"text": f"""Look at this carousel slide image. I want you to recreate it with a NEW style but with Hebrew text.
+
+HEBREW TEXT (RTL, right-to-left):
+"{slide_text}"
+
+NEW DESIGN STYLE:
 {style_desc}
 
-CONTEXT:
-- {slide_context}
-- Slide {slide_num} of {total_slides}
-- Category: {category}
-- Professional Israeli content creator style
-- Add subtle design elements but keep text as hero"""
+RULES:
+1. Use the original image as reference for content structure and text hierarchy
+2. Apply the new design style described above
+3. Replace ALL text with the Hebrew text provided
+4. Hebrew must read right-to-left (RTL)
+5. Keep the same aspect ratio
+6. Do NOT include any English text
+7. Slide {slide_num} of {total_slides}"""})
+        else:
+            # Fallback: couldn't download original, generate from scratch
+            print(f"    ⚠ Could not download original, generating from scratch")
+            parts.append({"text": f"""Create a social media carousel slide image.
 
-    # Build request parts
-    parts = [{"text": prompt}]
+The slide must contain this Hebrew text (RTL, right-to-left): "{slide_text}"
 
-    # Add reference image if provided
-    if reference_url:
-        try:
-            print(f"    📎 Downloading reference image...")
-            ref_resp = requests.get(reference_url, timeout=15)
-            ref_resp.raise_for_status()
-            ref_b64 = base64.b64encode(ref_resp.content).decode()
-            content_type = ref_resp.headers.get("Content-Type", "image/jpeg")
-            parts.insert(0, {
-                "inline_data": {
-                    "mime_type": content_type,
-                    "data": ref_b64
-                }
-            })
-            parts[1] = {"text": f"Use the attached image as a STYLE REFERENCE. Match its visual style, colors, and layout approach. Then create a new slide with this content:\n\n{prompt}"}
-            print(f"    ✅ Reference image attached ({len(ref_resp.content) // 1024}KB)")
-        except Exception as e:
-            print(f"    ⚠ Could not load reference image: {e}")
+Style: {style_desc}
+Slide {slide_num} of {total_slides}. No English text. Square aspect ratio."""})
+    else:
+        # No original image available
+        parts.append({"text": f"""Create a social media carousel slide image.
 
+The slide must contain this Hebrew text (RTL, right-to-left): "{slide_text}"
+
+Style: {style_desc}
+Slide {slide_num} of {total_slides}. No English text. Square aspect ratio."""})
+
+    # ── Attach extra reference image if provided ─────────────────────
+    if extra_reference_url:
+        ref_b64, ref_mime = download_image_to_base64(extra_reference_url)
+        if ref_b64:
+            parts.insert(0, {"inline_data": {"mime_type": ref_mime, "data": ref_b64}})
+            # Update prompt to mention the style reference
+            for i, p in enumerate(parts):
+                if "text" in p:
+                    parts[i]["text"] = "I've attached a STYLE REFERENCE image first. Match its visual style. " + p["text"]
+                    break
+            print(f"    ✅ Style reference image attached")
+
+    # ── Call Gemini API ───────────────────────────────────────────────
     try:
         resp = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent",
             headers={
                 "Content-Type": "application/json",
                 "x-goog-api-key": gemini_key,
@@ -166,9 +221,6 @@ CONTEXT:
                 "contents": [{"parts": parts}],
                 "generationConfig": {
                     "responseModalities": ["TEXT", "IMAGE"],
-                    "imageConfig": {
-                        "aspectRatio": "1:1",
-                    }
                 }
             },
             timeout=120,
@@ -180,7 +232,6 @@ CONTEXT:
         candidates = data.get("candidates", [])
         if not candidates:
             print(f"    ⚠ No candidates in Gemini response")
-            # Print response for debugging
             print(f"    ⚠ Response: {json.dumps(data)[:500]}")
             return None
 
@@ -191,8 +242,7 @@ CONTEXT:
                 if image_data:
                     return base64.b64decode(image_data)
 
-        print(f"    ⚠ No image data in Gemini response parts")
-        print(f"    ⚠ Parts: {json.dumps([{k: v[:50] if isinstance(v, str) else v for k, v in p.items()} for p in parts_resp])[:500]}")
+        print(f"    ⚠ No image data in response")
         return None
 
     except requests.exceptions.HTTPError as e:
@@ -203,12 +253,12 @@ CONTEXT:
             pass
         return None
     except Exception as e:
-        print(f"    ⚠ Gemini image generation error: {e}")
+        print(f"    ⚠ Gemini error: {e}")
         return None
 
 
-def generate_carousel(post, config, style="modern_dark", reference_url=None):
-    """Generate full carousel images for a post."""
+def generate_carousel(post, config, style="original", reference_url=None):
+    """Generate Hebrew carousel by recreating original slides with translated text."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key:
         print("  ⚠ GEMINI_API_KEY not set, skipping image generation")
@@ -218,39 +268,28 @@ def generate_carousel(post, config, style="modern_dark", reference_url=None):
     if not hebrew_text:
         return None
 
-    # Determine number of slides from original post
+    # Get original carousel images — these are the images we'll recreate in Hebrew
     original_images = post.get("carousel_images", [])
-    original_slides_count = post.get("slides_count", 0)
+    num_slides = len(original_images) if original_images else post.get("slides_count", 0)
 
-    # Detect slide count from original data
-    if original_slides_count > 0:
-        num_slides = original_slides_count
-    elif len(original_images) > 0:
-        num_slides = len(original_images)
-    else:
-        # Default: estimate from text length
+    if num_slides == 0:
+        # Fallback: estimate from text
         text_len = len(hebrew_text)
-        if text_len < 200:
-            num_slides = 3
-        elif text_len < 500:
-            num_slides = 5
-        else:
-            num_slides = 7
+        num_slides = 3 if text_len < 200 else (5 if text_len < 500 else 7)
 
     # Cap at reasonable number
     num_slides = min(num_slides, 10)
 
-    category_name = next(
-        (c["name_he"] for c in config["categories"] if c["id"] == post.get("category")),
-        "כללי"
-    )
-
-    # Split text into slides
+    # Split Hebrew text to match original slide count
     slide_texts = split_to_slides(hebrew_text, num_slides)
 
-    print(f"  🎨 Generating {num_slides} slide images...")
+    print(f"  🎨 Recreating {num_slides} slides in Hebrew (style: {style})...")
+    if original_images:
+        print(f"  📎 Using {len(original_images)} original images as base")
+    else:
+        print(f"  ⚠ No original images found, generating from scratch")
 
-    # Create output directory for this post
+    # Create output directory
     post_dir = GENERATED_DIR / post["id"]
     post_dir.mkdir(parents=True, exist_ok=True)
 
@@ -258,15 +297,17 @@ def generate_carousel(post, config, style="modern_dark", reference_url=None):
     for i, slide_text in enumerate(slide_texts, 1):
         print(f"    📸 Slide {i}/{num_slides}...")
 
+        # Get the matching original image URL (if available)
+        original_url = original_images[i - 1] if i - 1 < len(original_images) else None
+
         image_data = generate_slide_image(
             gemini_key,
             slide_text,
+            original_image_url=original_url,
             slide_num=i,
             total_slides=num_slides,
-            category=category_name,
-            platform=post.get("platform", "instagram"),
             style=style,
-            reference_url=reference_url if i == 1 else None,  # Reference only for first slide to save API calls
+            extra_reference_url=reference_url if i == 1 else None,
         )
 
         if image_data:
