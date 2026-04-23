@@ -166,9 +166,11 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 from image_generator import STYLE_PRESETS
                 STYLE_PRESETS["custom"] = custom_style
 
+            engine = body.get("engine", "auto")
+
             # Generate carousel images
             from image_generator import generate_carousel
-            result = generate_carousel(post, config, style=style, reference_url=reference_url)
+            result = generate_carousel(post, config, style=style, reference_url=reference_url, engine=engine)
 
             if result is None:
                 self._send_json_error(500, "Image generation returned no results - check Gemini API key and model")

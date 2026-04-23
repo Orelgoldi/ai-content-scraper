@@ -853,6 +853,19 @@
     <div class="modal-body">
       <input type="hidden" id="gen-post-id">
 
+      <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">מודל AI:</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+        <button class="style-option selected" data-engine="auto" onclick="selectEngine(this)">
+          <span style="font-size:16px;">⚡</span> אוטומטי
+        </button>
+        <button class="style-option" data-engine="openai" onclick="selectEngine(this)">
+          <span style="font-size:16px;">🟢</span> OpenAI
+        </button>
+        <button class="style-option" data-engine="gemini" onclick="selectEngine(this)">
+          <span style="font-size:16px;">🔵</span> Gemini
+        </button>
+      </div>
+
       <label style="color:var(--text-secondary);font-size:13px;display:block;margin-bottom:6px;">סגנון עיצוב:</label>
       <div id="style-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
         <button class="style-option selected" data-style="original" onclick="selectStyle(this)" style="grid-column:1/-1;">
@@ -1399,6 +1412,13 @@ document.addEventListener('keydown', e => {
 
 // ─── Generate Images On Demand ───────────────────────────────────────────
 let selectedStyle = 'original';
+let selectedEngine = 'auto';
+
+function selectEngine(btn) {
+  btn.parentElement.querySelectorAll('.style-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedEngine = btn.dataset.engine;
+}
 
 function openGenerateModal(postId) {
   document.getElementById('gen-post-id').value = postId;
@@ -1411,8 +1431,10 @@ function openGenerateModal(postId) {
 
   // Reset style selection
   selectedStyle = 'original';
+  selectedEngine = 'auto';
   document.querySelectorAll('.style-option').forEach(b => b.classList.remove('selected'));
   document.querySelector('.style-option[data-style="original"]').classList.add('selected');
+  document.querySelector('.style-option[data-engine="auto"]').classList.add('selected');
 
   // Close the post modal if open
   document.getElementById('modal-overlay').classList.remove('active');
@@ -1449,7 +1471,7 @@ async function submitGenerate() {
   status.textContent = '🔄 שולח בקשה ל-Gemini...';
 
   try {
-    const body = { style: selectedStyle };
+    const body = { style: selectedStyle, engine: selectedEngine };
     if (referenceUrl) body.reference_url = referenceUrl;
     if (selectedStyle === 'custom' && customStyle) body.custom_style = customStyle;
 

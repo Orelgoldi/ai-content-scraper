@@ -1,7 +1,7 @@
 """
 Image Generator - Hebrew Carousel Graphics
-Takes scraped posts with Hebrew text and generates carousel images
-using Google Gemini API image generation.
+Takes scraped posts with Hebrew text and generates carousel images.
+Supports: OpenAI (gpt-image-2) and Google Gemini (Nano Banana 2).
 """
 
 import json
@@ -119,6 +119,145 @@ def download_image_to_base64(url, timeout=20):
     except Exception as e:
         print(f"    ⚠ Image download failed: {e}")
         return None, None
+
+
+# ─── OpenAI Image Generation ─────────────────────────────────────────────
+def generate_slide_openai(openai_key, slide_text, original_image_url=None, slide_num=1, total_slides=1, style="original"):
+    """Generate/edit a slide using OpenAI gpt-image-2."""
+
+    style_desc = STYLE_PRESETS.get(style, STYLE_PRESETS["original"])
+    if style == "custom" and not style_desc:
+        style_desc = "Keep the same style as the original."
+
+    # ── If we have an original image, use the EDIT endpoint ──────────
+    if original_image_url:
+        print(f"    📎 Downloading original slide {slide_num} for OpenAI edit...")
+        b64, mime = download_image_to_base64(original_image_url)
+
+        if b64:
+            import tempfile
+            # Save image to temp file for multipart upload
+            ext = "png" if "png" in (mime or "") else "jpg"
+            tmp_path = tempfile.mktemp(suffix=f".{ext}")
+            with open(tmp_path, "wb") as f:
+                f.write(base64.b64decode(b64))
+
+            if style == "original":
+                edit_prompt = f"""Recreate this exact carousel slide image but replace ALL text with the following Hebrew text (RTL, right-to-left direction):
+
+"{slide_text}"
+
+Keep the EXACT same visual design, layout, colors, background, graphics, and decorative elements. Only change the text from English to Hebrew. The Hebrew text must read right-to-left. Do NOT add any English text."""
+            else:
+                edit_prompt = f"""Redesign this carousel slide with a new style. Replace all text with Hebrew (RTL):
+
+"{slide_text}"
+
+New style: {style_desc}
+Keep the content structure but apply the new design. No English text. Slide {slide_num}/{total_slides}."""
+
+            try:
+                with open(tmp_path, "rb") as img_file:
+                    resp = requests.post(
+                        "https://api.openai.com/v1/images/edits",
+                        headers={"Authorization": f"Bearer {openai_key}"},
+                        data={
+                            "model": "gpt-image-2",
+                            "prompt": edit_prompt,
+                            "size": "1024x1024",
+                            "quality": "high",
+                        },
+                        files={"image": (f"slide.{ext}", img_file, mime or "image/png")},
+                        timeout=120,
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+
+                # Extract image
+                if data.get("data") and len(data["data"]) > 0:
+                    img_b64 = data["data"][0].get("b64_json", "")
+                    if img_b64:
+                        return base64.b64decode(img_b64)
+                    # If URL returned instead
+                    img_url = data["data"][0].get("url", "")
+                    if img_url:
+                        dl_resp = requests.get(img_url, timeout=30)
+                        dl_resp.raise_for_status()
+                        return dl_resp.content
+
+                print(f"    ⚠ OpenAI edit: no image in response")
+                return None
+
+            except requests.exceptions.HTTPError as e:
+                print(f"    ⚠ OpenAI edit HTTP error: {e}")
+                try:
+                    print(f"    ⚠ Response: {e.response.text[:500]}")
+                except:
+                    pass
+                # Fallback to generations endpoint
+                print(f"    🔄 Falling back to OpenAI generations...")
+            except Exception as e:
+                print(f"    ⚠ OpenAI edit error: {e}")
+                print(f"    🔄 Falling back to OpenAI generations...")
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except:
+                    pass
+
+    # ── Fallback or no original: use GENERATIONS endpoint ────────────
+    gen_prompt = f"""Create a professional social media carousel slide for Instagram.
+
+The slide MUST contain this Hebrew text (RTL, right-to-left direction):
+"{slide_text}"
+
+Style: {style_desc}
+Slide {slide_num} of {total_slides}.
+Do NOT include any English text. The Hebrew text should be large, readable, and the main focus.
+Make it look like a professional Israeli content creator made it."""
+
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/images/generations",
+            headers={
+                "Authorization": f"Bearer {openai_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "gpt-image-2",
+                "prompt": gen_prompt,
+                "size": "1024x1024",
+                "quality": "high",
+                "n": 1,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get("data") and len(data["data"]) > 0:
+            img_b64 = data["data"][0].get("b64_json", "")
+            if img_b64:
+                return base64.b64decode(img_b64)
+            img_url = data["data"][0].get("url", "")
+            if img_url:
+                dl_resp = requests.get(img_url, timeout=30)
+                dl_resp.raise_for_status()
+                return dl_resp.content
+
+        print(f"    ⚠ OpenAI generations: no image in response")
+        return None
+
+    except requests.exceptions.HTTPError as e:
+        print(f"    ⚠ OpenAI generations HTTP error: {e}")
+        try:
+            print(f"    ⚠ Response: {e.response.text[:500]}")
+        except:
+            pass
+        return None
+    except Exception as e:
+        print(f"    ⚠ OpenAI generations error: {e}")
+        return None
 
 
 # ─── Gemini Image Generation ──────────────────────────────────────────────
@@ -257,12 +396,29 @@ Slide {slide_num} of {total_slides}. No English text. Square aspect ratio."""})
         return None
 
 
-def generate_carousel(post, config, style="original", reference_url=None):
-    """Generate Hebrew carousel by recreating original slides with translated text."""
+def generate_carousel(post, config, style="original", reference_url=None, engine="auto"):
+    """Generate Hebrew carousel by recreating original slides with translated text.
+    engine: 'openai', 'gemini', or 'auto' (tries OpenAI first, falls back to Gemini)
+    """
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if not gemini_key:
-        print("  ⚠ GEMINI_API_KEY not set, skipping image generation")
-        return None
+
+    # Determine which engine to use
+    if engine == "auto":
+        engine = "openai" if openai_key else "gemini"
+    if engine == "openai" and not openai_key:
+        print("  ⚠ OPENAI_API_KEY not set, falling back to Gemini")
+        engine = "gemini"
+    if engine == "gemini" and not gemini_key:
+        print("  ⚠ GEMINI_API_KEY not set")
+        if openai_key:
+            print("  🔄 Falling back to OpenAI")
+            engine = "openai"
+        else:
+            print("  ❌ No API keys configured!")
+            return None
+
+    print(f"  🤖 Using engine: {engine.upper()}")
 
     hebrew_text = post.get("hebrew_text", "")
     if not hebrew_text:
@@ -300,15 +456,25 @@ def generate_carousel(post, config, style="original", reference_url=None):
         # Get the matching original image URL (if available)
         original_url = original_images[i - 1] if i - 1 < len(original_images) else None
 
-        image_data = generate_slide_image(
-            gemini_key,
-            slide_text,
-            original_image_url=original_url,
-            slide_num=i,
-            total_slides=num_slides,
-            style=style,
-            extra_reference_url=reference_url if i == 1 else None,
-        )
+        if engine == "openai":
+            image_data = generate_slide_openai(
+                openai_key,
+                slide_text,
+                original_image_url=original_url,
+                slide_num=i,
+                total_slides=num_slides,
+                style=style,
+            )
+        else:
+            image_data = generate_slide_image(
+                gemini_key,
+                slide_text,
+                original_image_url=original_url,
+                slide_num=i,
+                total_slides=num_slides,
+                style=style,
+                extra_reference_url=reference_url if i == 1 else None,
+            )
 
         if image_data:
             filepath = post_dir / f"slide_{i:02d}.png"
