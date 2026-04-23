@@ -1462,13 +1462,14 @@ async function submitGenerate() {
   const customStyle = document.getElementById('custom-style-text').value.trim();
   const btn = document.getElementById('gen-submit-btn');
   const status = document.getElementById('gen-status');
+  const engineName = selectedEngine === 'openai' ? 'OpenAI' : selectedEngine === 'gemini' ? 'Gemini' : 'AI';
 
   btn.disabled = true;
-  btn.textContent = '⏳ מגנרט תמונות... (יכול לקחת דקה-שתיים)';
+  btn.textContent = `⏳ מגנרט עם ${engineName}... (יכול לקחת דקה-שתיים)`;
   status.style.display = 'block';
   status.style.background = 'rgba(99, 102, 241, 0.15)';
   status.style.color = 'var(--accent-blue)';
-  status.textContent = '🔄 שולח בקשה ל-Gemini...';
+  status.textContent = `🔄 שולח בקשה ל-${engineName}...`;
 
   try {
     const body = { style: selectedStyle, engine: selectedEngine };
