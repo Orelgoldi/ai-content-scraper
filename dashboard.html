@@ -479,6 +479,32 @@
   .hebrew-badge.done { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
   .hebrew-badge.pending { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
 
+  /* Generate Button */
+  .generate-btn {
+    margin-right: auto;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    color: #fff;
+    transition: all 0.2s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .generate-btn:hover { opacity: 0.85; transform: scale(1.05); }
+  .generate-btn:disabled { opacity: 0.5; cursor: wait; transform: none; }
+  .generate-btn.modal-gen-btn {
+    font-size: 14px;
+    padding: 10px 24px;
+    border-radius: 12px;
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+  }
+
   /* Modal */
   .modal-overlay {
     position: fixed;
@@ -1173,6 +1199,7 @@ function renderPosts() {
           <span class="hebrew-badge ${post.hebrew_status === 'done' ? 'done' : 'pending'}">
             ${post.hebrew_status === 'done' ? 'עברית ✓' : 'ממתין לתרגום'}
           </span>
+          ${post.hebrew_status === 'done' && !hasGenerated ? `<button class="generate-btn" onclick="event.stopPropagation();generateImages('${post.id}', this)" title="גנרט תמונות בעברית">🎨 גנרט תמונות</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -1263,6 +1290,20 @@ function openModal(idx) {
     hebrewSection.style.display = 'none';
   }
 
+  // Generate button in modal
+  let modalGenBtn = document.getElementById('modal-generate-btn');
+  if (!modalGenBtn) {
+    modalGenBtn = document.createElement('div');
+    modalGenBtn.id = 'modal-generate-btn';
+    hebrewSection.parentNode.insertBefore(modalGenBtn, hebrewSection.nextSibling);
+  }
+  if (post.hebrew_status === 'done' && (!post.generated_images || post.generated_images.length === 0)) {
+    modalGenBtn.innerHTML = `<button class="generate-btn modal-gen-btn" onclick="generateImages('${post.id}', this)">🎨 גנרט תמונות קרוסלה בעברית</button>`;
+    modalGenBtn.style.display = 'block';
+  } else {
+    modalGenBtn.style.display = 'none';
+  }
+
   overlay.classList.add('active');
   document.body.style.overflow = 'hidden';
 }
@@ -1276,6 +1317,41 @@ function closeModal(e) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeModal();
 });
+
+// ─── Generate Images On Demand ───────────────────────────────────────────
+async function generateImages(postId, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ מגנרט תמונות...';
+  }
+
+  try {
+    const resp = await fetch(`/api/generate/${postId}`, { method: 'POST' });
+    const data = await resp.json();
+
+    if (data.success) {
+      // Refresh the data
+      await loadData();
+      if (btn) {
+        btn.textContent = `✅ ${data.images_count} תמונות נוצרו!`;
+        btn.style.background = 'var(--accent-green)';
+        setTimeout(() => { if (btn.closest('.modal-content')) closeModal({target: document.getElementById('modal-overlay'), currentTarget: document.getElementById('modal-overlay')}); }, 1500);
+      }
+    } else {
+      alert('שגיאה: ' + (data.error || 'Unknown error'));
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🎨 גנרט תמונות';
+      }
+    }
+  } catch (err) {
+    alert('שגיאה בחיבור: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🎨 גנרט תמונות';
+    }
+  }
+}
 
 // ─── Export ───────────────────────────────────────────────────────────────
 function exportData() {

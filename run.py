@@ -46,8 +46,10 @@ def run_pipeline():
             rewrite_pending_posts(limit=new_posts)
 
         # Step 3: Generate Hebrew carousel images
-        from image_generator import generate_pending_images
-        generate_pending_images(limit=min(new_posts, 5) if new_posts > 0 else 5)
+        # NOTE: Automatic image generation disabled - now triggered manually via dashboard
+        # POST /api/generate/{post_id} endpoint handles on-demand generation
+        # from image_generator import generate_pending_images
+        # generate_pending_images(limit=min(new_posts, 5) if new_posts > 0 else 5)
 
         # Step 4: Send Telegram digest
         os.system(f"{sys.executable} telegram_bot.py digest")
@@ -76,6 +78,116 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(BASE_DIR), **kwargs)
+
+    def _send_cors_headers(self):
+        """Send CORS headers for cross-origin requests."""
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests."""
+        self.send_response(200)
+        self._send_cors_headers()
+        self.end_headers()
+
+    def do_POST(self):
+        """Handle POST API endpoints."""
+        # POST /api/generate/{post_id} - Generate images for a specific post
+        if self.path.startswith("/api/generate/"):
+            post_id = self.path[len("/api/generate/"):]
+            self._handle_generate(post_id)
+            return
+
+        self.send_response(404)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"error": "Not found"}).encode("utf-8"))
+
+    def _handle_generate(self, post_id):
+        """Generate carousel images for a specific post on demand."""
+        db_path = BASE_DIR / "data" / "posts.json"
+
+        try:
+            # Load the database
+            if not db_path.exists():
+                self._send_json_error(404, "Database not found")
+                return
+
+            with open(db_path, "r", encoding="utf-8") as f:
+                db = json.load(f)
+
+            # Find the post by id
+            post = None
+            post_index = None
+            for i, p in enumerate(db.get("posts", [])):
+                if p.get("id") == post_id:
+                    post = p
+                    post_index = i
+                    break
+
+            if post is None:
+                self._send_json_error(404, f"Post not found: {post_id}")
+                return
+
+            # Check prerequisites
+            if post.get("hebrew_status") != "done":
+                self._send_json_error(400, f"Post hebrew_status is '{post.get('hebrew_status')}', expected 'done'")
+                return
+
+            if not post.get("hebrew_text"):
+                self._send_json_error(400, "Post has no hebrew_text")
+                return
+
+            # Load config
+            config_path = BASE_DIR / "config.json"
+            config = {}
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+
+            # Generate carousel images
+            from image_generator import generate_carousel
+            result = generate_carousel(post, config)
+
+            if result is None:
+                self._send_json_error(500, "Image generation returned no results")
+                return
+
+            # Update the post in the database
+            db["posts"][post_index]["generated_images"] = result
+            db["posts"][post_index]["images_generated_at"] = datetime.now().isoformat()
+            db["posts"][post_index]["images_count"] = len(result)
+
+            with open(db_path, "w", encoding="utf-8") as f:
+                json.dump(db, f, ensure_ascii=False, indent=2)
+
+            # Send success response
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "success": True,
+                "post_id": post_id,
+                "images_count": len(result),
+                "generated_images": result
+            }, ensure_ascii=False).encode("utf-8"))
+
+        except Exception as e:
+            self._send_json_error(500, f"Generation failed: {str(e)}")
+
+    def _send_json_error(self, status_code, message):
+        """Send a JSON error response with CORS headers."""
+        self.send_response(status_code)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(json.dumps({
+            "success": False,
+            "error": message
+        }, ensure_ascii=False).encode("utf-8"))
 
     def do_GET(self):
         # Redirect root to dashboard
