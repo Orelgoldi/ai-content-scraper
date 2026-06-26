@@ -18,6 +18,24 @@ PORT = int(os.environ.get("PORT", 8080))
 SCRAPE_INTERVAL = int(os.environ.get("SCRAPE_INTERVAL", 28800))  # Default: every 8 hours (3 runs/day)
 
 
+def is_bot_paused():
+    """Return True when the automated pipeline is suspended.
+
+    Checked before every scheduled run. Priority: BOT_PAUSED env var, then the
+    config.json "bot.paused" flag. Lets the dashboard keep serving while the
+    scrape/rewrite/telegram activity is halted, and is reversible.
+    """
+    env = os.environ.get("BOT_PAUSED")
+    if env is not None:
+        return env.strip().lower() in ("1", "true", "yes", "on")
+
+    try:
+        with open(BASE_DIR / "config.json", "r", encoding="utf-8") as f:
+            return bool(json.load(f).get("bot", {}).get("paused", False))
+    except Exception:
+        return False
+
+
 def run_pipeline():
     """Run the full scrape → rewrite → notify pipeline."""
     print(f"\n🚀 Running full pipeline... ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
@@ -66,7 +84,10 @@ def scheduled_scraper():
 
     while True:
         try:
-            run_pipeline()
+            if is_bot_paused():
+                print(f"⏸️  Bot paused — skipping scheduled run. ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})")
+            else:
+                run_pipeline()
         except Exception as e:
             print(f"❌ Scheduler error: {e}")
 
@@ -231,7 +252,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "status": "ok",
                 "time": datetime.now().isoformat(),
-                "interval_minutes": SCRAPE_INTERVAL // 60
+                "interval_minutes": SCRAPE_INTERVAL // 60,
+                "paused": is_bot_paused()
             }).encode())
             return
 
@@ -287,6 +309,8 @@ def main():
 ║   Status:     /health                            ║
 ╚══════════════════════════════════════════════════╝
 """)
+        if is_bot_paused():
+            print("⏸️  Bot activity is SUSPENDED (config bot.paused / BOT_PAUSED). Dashboard only.\n")
 
         # Start background scraper thread
         scraper_thread = threading.Thread(target=scheduled_scraper, daemon=True)

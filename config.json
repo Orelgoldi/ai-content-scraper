@@ -1,4 +1,8 @@
 {
+  "bot": {
+    "paused": true,
+    "_comment": "When paused=true the scheduled scraper/rewrite/telegram pipeline is suspended. The dashboard stays up. Override with env var BOT_PAUSED=true/false. Set paused=false to resume."
+  },
   "apify": {
     "token": "YOUR_APIFY_API_TOKEN",
     "actors": {
